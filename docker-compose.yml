@@ -95,6 +95,12 @@ services:
     build:
       context: .
       dockerfile: ./mock_apis/drift_injector/Dockerfile
+    environment:
+      - INCIDENT_API_URL=http://incident-api:8000
+      - METRICS_API_URL=http://metrics-api:8000
+      - DEPLOY_API_URL=http://deploy-api:8000
+      - LOG_API_URL=http://log-api:8000
+      - NOTIFY_API_URL=http://notify-api:8000
     depends_on:
       incident-api:
         condition: service_healthy

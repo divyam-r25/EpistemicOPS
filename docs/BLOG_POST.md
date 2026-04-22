@@ -21,11 +21,11 @@ At the end of an Era, the Primary Agent writes a 2048-token "Legacy Document" to
 
 ## Results
 We fine-tuned Llama 3.1 8B using GRPO (via HuggingFace TRL and Unsloth). 
-The results were stark:
-- **Drift Detection:** Rose from 8% (baseline) to **55%**
-- **Legacy Utility:** The Legacy Documents improved the successor's performance by **43%**
-- **Oversight Impact:** The Primary Agent improved recovery by **28%** per intervention.
+The target metrics post-training are:
+- **Drift Detection:** Rise from 8% (baseline) to **55% (projected)**
+- **Legacy Utility:** Legacy Documents improve successor's performance by **43% (projected)**
+- **Oversight Impact:** Primary Agent improves recovery by **28% (projected)** per intervention.
 
 EpistemicOps proves that temporal trust and pedagogical transfer can be trained together. Because in the end, they are the same cognitive act.
 
-[Explore the codebase] | [Try the Demo]
+[Explore the codebase](https://github.com/yourusername/EpistemicOps) | [Try the Demo](https://huggingface.co/spaces/yourusername/EpistemicOps)
