@@ -1,0 +1,63 @@
+id: "deployment_disaster"
+name: "The Deployment Disaster"
+num_eras: 5
+eras:
+  - era_id: 1
+    task_brief: "Deploy payment-service v3.2.1 to staging."
+    available_services: ["deploy-api", "log-api", "notify-api"]
+    drift_events: []
+    drift_window: {earliest_step: 10, latest_step: 20}
+    success_criteria: ["deploy_successful", "legacy_doc_written"]
+    max_steps: 40
+    legacy_token_budget: 2048
+
+  - era_id: 2
+    task_brief: "Promote payment-service v3.2.1 to production."
+    available_services: ["deploy-api", "log-api", "notify-api"]
+    drift_events:
+      - id: "DE-004"
+        type: "DRIFT_AUTH"
+        target_service: "deploy-api"
+        target_endpoint: "POST /deployments/rollback"
+        drift_reason: "Auth header changed from X-Deploy-Token to Authorization: Bearer"
+    drift_window: {earliest_step: 5, latest_step: 10}
+    success_criteria: ["deploy_successful", "legacy_doc_written"]
+    max_steps: 40
+    legacy_token_budget: 2048
+
+  - era_id: 3
+    task_brief: "v3.2.1 causes memory leak in production — rollback required."
+    available_services: ["incident-api", "deploy-api", "log-api", "notify-api"]
+    drift_events:
+      - id: "DE-003"
+        type: "DRIFT_SILENT"
+        target_service: "notify-api"
+        target_endpoint: "POST /notifications/send"
+        drift_reason: "API returns 200 OK but delivered: false (notification not sent)"
+    drift_window: {earliest_step: 8, latest_step: 12}
+    success_criteria: ["rollback_successful", "legacy_doc_written"]
+    max_steps: 40
+    legacy_token_budget: 2048
+
+  - era_id: 4
+    task_brief: "Post-incident review — document root cause across all 3 eras."
+    available_services: ["incident-api", "log-api"]
+    drift_events: []
+    drift_window: {earliest_step: 20, latest_step: 25}
+    success_criteria: ["root_cause_documented", "legacy_doc_written"]
+    max_steps: 40
+    legacy_token_budget: 2048
+
+  - era_id: 5
+    task_brief: "Implement deployment gate that prevents this class of failure."
+    available_services: ["metrics-api", "deploy-api", "log-api"]
+    drift_events:
+      - id: "DE-005"
+        type: "DRIFT_RENAME"
+        target_service: "metrics-api"
+        target_endpoint: "GET /metrics/service/{name}"
+        drift_reason: "datapoints[].value renamed to metric_value"
+    drift_window: {earliest_step: 5, latest_step: 15}
+    success_criteria: ["gate_implemented", "legacy_doc_written"]
+    max_steps: 40
+    legacy_token_budget: 2048

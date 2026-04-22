@@ -1,0 +1,117 @@
+version: "3.9"
+
+services:
+  incident-api:
+    build:
+      context: .
+      dockerfile: ./mock_apis/incident_api/Dockerfile
+    ports:
+      - "8001:8000"
+    environment:
+      - DRIFT_MODE=stable
+    volumes:
+      - api-logs:/logs
+    networks:
+      - epistemicops-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  metrics-api:
+    build:
+      context: .
+      dockerfile: ./mock_apis/metrics_api/Dockerfile
+    ports:
+      - "8002:8000"
+    environment:
+      - DRIFT_MODE=stable
+    volumes:
+      - api-logs:/logs
+    networks:
+      - epistemicops-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  deploy-api:
+    build:
+      context: .
+      dockerfile: ./mock_apis/deploy_api/Dockerfile
+    ports:
+      - "8003:8000"
+    environment:
+      - DRIFT_MODE=stable
+    volumes:
+      - api-logs:/logs
+    networks:
+      - epistemicops-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  log-api:
+    build:
+      context: .
+      dockerfile: ./mock_apis/log_api/Dockerfile
+    ports:
+      - "8004:8000"
+    environment:
+      - DRIFT_MODE=stable
+    volumes:
+      - api-logs:/logs
+    networks:
+      - epistemicops-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  notify-api:
+    build:
+      context: .
+      dockerfile: ./mock_apis/notify_api/Dockerfile
+    ports:
+      - "8005:8000"
+    environment:
+      - DRIFT_MODE=stable
+    volumes:
+      - api-logs:/logs
+    networks:
+      - epistemicops-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  drift-injector:
+    build:
+      context: .
+      dockerfile: ./mock_apis/drift_injector/Dockerfile
+    depends_on:
+      incident-api:
+        condition: service_healthy
+      metrics-api:
+        condition: service_healthy
+      deploy-api:
+        condition: service_healthy
+      log-api:
+        condition: service_healthy
+      notify-api:
+        condition: service_healthy
+    networks:
+      - epistemicops-net
+
+volumes:
+  api-logs:
+
+networks:
+  epistemicops-net:
+    driver: bridge

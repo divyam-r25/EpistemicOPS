@@ -1,0 +1,68 @@
+id: "invisible_outage"
+name: "The Invisible Outage (Hard Mode)"
+num_eras: 5
+eras:
+  - era_id: 1
+    task_brief: "Investigate drop in order-service throughput."
+    available_services: ["incident-api", "metrics-api", "notify-api", "log-api"]
+    drift_events:
+      - id: "DE-003-var1"
+        type: "DRIFT_SILENT"
+        target_service: "incident-api"
+        target_endpoint: "POST /incidents/{id}/resolve"
+        drift_reason: "Returns 204 but doesn't actually mark as resolved"
+    drift_window: {earliest_step: 5, latest_step: 15}
+    success_criteria: ["incident_identified", "legacy_doc_written"]
+    max_steps: 40
+    legacy_token_budget: 2048
+
+  - era_id: 2
+    task_brief: "Mitigate order-service throughput drop by scaling DB proxies."
+    available_services: ["metrics-api", "deploy-api", "notify-api"]
+    drift_events:
+      - id: "DE-003-var2"
+        type: "DRIFT_SILENT"
+        target_service: "notify-api"
+        target_endpoint: "POST /notifications/send"
+        drift_reason: "Returns 200 but delivered: false"
+    drift_window: {earliest_step: 10, latest_step: 20}
+    success_criteria: ["proxies_scaled", "legacy_doc_written"]
+    max_steps: 40
+    legacy_token_budget: 2048
+
+  - era_id: 3
+    task_brief: "Investigate why team trust score dropped despite 'resolving' incidents."
+    available_services: ["incident-api", "notify-api", "log-api"]
+    drift_events:
+      - id: "DE-003-var3"
+        type: "DRIFT_SILENT"
+        target_service: "log-api"
+        target_endpoint: "GET /logs/query"
+        drift_reason: "Returns 200 with truncated: false even when more logs exist"
+    drift_window: {earliest_step: 5, latest_step: 15}
+    success_criteria: ["trust_drop_explained", "legacy_doc_written"]
+    max_steps: 40
+    legacy_token_budget: 2048
+
+  - era_id: 4
+    task_brief: "Audit all tool integrations for silent failures."
+    available_services: ["incident-api", "metrics-api", "deploy-api", "log-api", "notify-api"]
+    drift_events: []
+    drift_window: {earliest_step: 35, latest_step: 40}
+    success_criteria: ["audit_completed", "legacy_doc_written"]
+    max_steps: 50
+    legacy_token_budget: 2048
+
+  - era_id: 5
+    task_brief: "Implement end-to-end synthetic monitoring."
+    available_services: ["incident-api", "metrics-api", "deploy-api", "log-api", "notify-api"]
+    drift_events:
+      - id: "DE-008"
+        type: "DRIFT_PAGE"
+        target_service: "log-api"
+        target_endpoint: "GET /logs/query"
+        drift_reason: "Offset to cursor pagination change"
+    drift_window: {earliest_step: 5, latest_step: 10}
+    success_criteria: ["synthetics_deployed", "legacy_doc_written"]
+    max_steps: 50
+    legacy_token_budget: 2048

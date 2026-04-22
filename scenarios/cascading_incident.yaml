@@ -1,0 +1,126 @@
+id: "cascading_incident"
+name: "The Cascading Incident"
+num_eras: 5
+eras:
+  - era_id: 1
+    task_brief: "Investigate and resolve INC-2041: Redis connection timeout in payment-service."
+    available_services:
+      - incident-api
+      - metrics-api
+      - log-api
+      - notify-api
+    drift_events: []
+    drift_window:
+      earliest_step: 10
+      latest_step: 20
+    success_criteria:
+      - incident_resolved
+      - legacy_doc_written
+    max_steps: 40
+    legacy_token_budget: 2048
+
+  - era_id: 2
+    task_brief: "Prevent INC-2041 recurrence; deploy Redis pool size fix (payment-service v3.2.1)."
+    available_services:
+      - incident-api
+      - deploy-api
+      - log-api
+      - notify-api
+    drift_events:
+      - id: "DE-002"
+        type: "DRIFT_STATUS"
+        target_service: "deploy-api"
+        target_endpoint: "POST /deployments/rollback"
+        drift_reason: "Rollback response body vanished (returns 204 instead of 200 with body)"
+        drifted_behaviour:
+          field: "body"
+          value_type: "empty"
+    drift_window:
+      earliest_step: 5
+      latest_step: 15
+    success_criteria:
+      - deploy_successful
+      - legacy_doc_written
+    max_steps: 40
+    legacy_token_budget: 2048
+
+  - era_id: 3
+    task_brief: "New incident INC-2089: payment latency. SLO breach in 20 min."
+    available_services:
+      - incident-api
+      - metrics-api
+      - deploy-api
+      - log-api
+      - notify-api
+    drift_events:
+      - id: "DE-001"
+        type: "DRIFT_TYPE"
+        target_service: "incident-api"
+        target_endpoint: "GET /incidents/{id}"
+        drift_reason: "status field changed from integer code to string enum"
+        drifted_behaviour:
+          field: "status"
+          value_type: "string"
+    drift_window:
+      earliest_step: 8
+      latest_step: 12
+    success_criteria:
+      - incident_resolved
+      - slo_breach_avoided
+      - legacy_doc_written
+    max_steps: 20
+    legacy_token_budget: 2048
+
+  - era_id: 4
+    task_brief: "Post-mortem automation: auto-resolve P3 incidents via API."
+    available_services:
+      - incident-api
+      - metrics-api
+      - deploy-api
+      - log-api
+      - notify-api
+    drift_events:
+      - id: "DE-006"
+        type: "DRIFT_CASCADE"
+        target_service: "metrics-api"
+        target_endpoint: "GET /metrics/service/{name}"
+        drift_reason: "datapoints[].value renamed to metric_value"
+        drifted_behaviour:
+          field: "value"
+          value_type: "renamed_to_metric_value"
+    drift_window:
+      earliest_step: 5
+      latest_step: 15
+    success_criteria:
+      - automation_deployed
+      - legacy_doc_written
+    max_steps: 40
+    legacy_token_budget: 2048
+
+  - era_id: 5
+    task_brief: "Harden the entire incident response pipeline against schema drift."
+    available_services:
+      - incident-api
+      - metrics-api
+      - deploy-api
+      - log-api
+      - notify-api
+    drift_events:
+      - id: "DE-007"
+        type: "DRIFT_RATE"
+        target_service: "notify-api"
+        target_endpoint: "POST /notifications/send"
+        drift_reason: "Rate limit dropped from 100/min to 5/min"
+      - id: "DE-008"
+        type: "DRIFT_PAGE"
+        target_service: "log-api"
+        target_endpoint: "GET /logs/query"
+        drift_reason: "Pagination changed from offset to cursor"
+    drift_window:
+      earliest_step: 10
+      latest_step: 15
+    success_criteria:
+      - pipeline_hardened
+      - legacy_doc_written
+    max_steps: 50
+    legacy_token_budget: 2048

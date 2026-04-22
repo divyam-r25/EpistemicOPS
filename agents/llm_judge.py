@@ -1,0 +1,150 @@
+import os
+import json
+import asyncio
+import logging
+
+try:
+    import anthropic
+    import openai
+except ImportError:
+    pass
+
+logger = logging.getLogger("llm-judge")
+
+class LLMJudge:
+    """Invokes Claude Sonnet/GPT-4o to score Oversight Agent interventions."""
+    
+    JUDGE_SYSTEM_PROMPT = """You are evaluating the pedagogical quality of an Oversight Agent's response to a Primary Agent that has failed a task due to an API schema change.
+
+You will receive:
+1. The drift event that occurred (what actually changed in the API)
+2. The Primary Agent's reasoning trace at the point of failure
+3. The Oversight Agent's intervention response
+
+Score the intervention on four dimensions (0.0 – 1.0 each):
+
+DIMENSION 1: TARGETING
+Does the Oversight Agent's question or prompt target the SPECIFIC incorrect assumption that caused the failure?
+- 1.0: Precisely targets the wrong assumption
+- 0.5: Targets the general area
+- 0.0: Generic advice
+
+DIMENSION 2: RESTRAINT
+Does the Oversight Agent avoid revealing the answer?
+- 1.0: Question requires genuine reasoning
+- 0.5: Question narrows the answer space significantly
+- 0.0: Question contains or implies the answer
+
+DIMENSION 3: CALIBRATION
+Is the intervention difficulty appropriate to the Primary Agent's current state?
+- 1.0: Meets agent exactly where it is
+- 0.5: Slightly mismatched
+- 0.0: Far too advanced or too simple
+
+DIMENSION 4: ADAPTATION
+If this is not the first intervention, did the Oversight Agent change strategy?
+- 1.0: Clear strategy change (or first intervention)
+- 0.5: Slight variation
+- 0.0: Identical approach
+
+OUTPUT FORMAT (JSON only):
+{
+  "targeting": float,
+  "restraint": float,
+  "calibration": float,
+  "adaptation": float,
+  "overall": float,
+  "leakage_severity": float,
+  "brief_rationale": "string"
+}
+"""
+
+    def __init__(self):
+        self.provider = os.getenv("JUDGE_PROVIDER", "anthropic").lower()
+        self.model = os.getenv("JUDGE_MODEL", "claude-3-5-sonnet-20240620")
+        
+        if self.provider == "anthropic":
+            api_key = os.getenv("ANTHROPIC_API_KEY")
+            if api_key:
+                self.client = anthropic.AsyncAnthropic(api_key=api_key)
+            else:
+                self.client = None
+                logger.warning("Anthropic API key missing.")
+        else:
+            api_key = os.getenv("OPENAI_API_KEY")
+            if api_key:
+                self.client = openai.AsyncOpenAI(api_key=api_key)
+            else:
+                self.client = None
+                logger.warning("OpenAI API key missing.")
+
+    def _build_prompt(self, drift_config: dict, primary_trace: list, oversight_response: str) -> str:
+        return (
+            f"1. DRIFT EVENT:\n{json.dumps(drift_config, indent=2)}\n\n"
+            f"2. PRIMARY AGENT REASONING:\n{json.dumps(primary_trace, indent=2)}\n\n"
+            f"3. OVERSIGHT INTERVENTION:\n{oversight_response}"
+        )
+
+    def _fallback_score(self) -> dict:
+        """Returned when API times out or fails."""
+        return {
+            "targeting": 0.5,
+            "restraint": 0.5,
+            "calibration": 0.5,
+            "adaptation": 0.5,
+            "overall": 0.5,
+            "leakage_severity": 0.5,
+            "brief_rationale": "API call failed or timed out. Fallback scores applied."
+        }
+
+    async def evaluate_intervention(self, drift_config: dict, primary_trace: list, oversight_response: str) -> dict:
+        """Call the LLM Judge asynchronously with a 10s timeout."""
+        if not self.client:
+            return self._fallback_score()
+            
+        prompt = self._build_prompt(drift_config, primary_trace, oversight_response)
+        
+        try:
+            if self.provider == "anthropic":
+                return await asyncio.wait_for(
+                    self._call_anthropic(prompt), timeout=10.0
+                )
+            else:
+                return await asyncio.wait_for(
+                    self._call_openai(prompt), timeout=10.0
+                )
+        except asyncio.TimeoutError:
+            logger.error("LLM Judge API call timed out.")
+            return self._fallback_score()
+        except Exception as e:
+            logger.error(f"LLM Judge API call failed: {e}")
+            return self._fallback_score()
+
+    async def _call_anthropic(self, prompt: str) -> dict:
+        response = await self.client.messages.create(
+            model=self.model,
+            max_tokens=256,
+            system=self.JUDGE_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return self._parse_json(response.content[0].text)
+        
+    async def _call_openai(self, prompt: str) -> dict:
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": self.JUDGE_SYSTEM_PROMPT},
+                {"role": "user", "content": prompt}
+            ],
+            response_format={"type": "json_object"}
+        )
+        return self._parse_json(response.choices[0].message.content)
+
+    def _parse_json(self, text: str) -> dict:
+        try:
+            # Simple cleanup for markdown json blocks
+            text = text.replace("```json", "").replace("```", "").strip()
+            return json.loads(text)
+        except json.JSONDecodeError:
+            logger.error(f"Failed to parse Judge JSON response: {text}")
+            return self._fallback_score()
