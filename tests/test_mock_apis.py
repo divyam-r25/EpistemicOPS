@@ -1,26 +1,46 @@
 import pytest
-from httpx import AsyncClient
+import httpx
+import os
 
-# This is a placeholder test file for the mock APIs.
-# In a real environment, you'd use FastAPI's TestClient or AsyncClient against the running containers.
-
-@pytest.mark.asyncio
-async def test_incident_api_stable():
-    """Test incident API in stable mode."""
-    # Assuming FastAPI app from mock_apis.incident_api.main is imported
-    # async with AsyncClient(app=app, base_url="http://test") as ac:
-    #     response = await ac.get("/incidents/INC-2041")
-    #     assert response.status_code == 200
-    #     assert isinstance(response.json()["status"], int)
-    pass
+# These tests expect the docker-compose stack to be running locally
+BASE_URL = "http://localhost:8006" # drift-injector
+INCIDENT_API = "http://localhost:8001"
+METRICS_API = "http://localhost:8002"
+DEPLOY_API = "http://localhost:8003"
+LOG_API = "http://localhost:8004"
+NOTIFY_API = "http://localhost:8005"
 
 @pytest.mark.asyncio
-async def test_incident_api_drifted():
-    """Test incident API DE-001 drift (status to string)."""
-    # Simulate drift
-    # async with AsyncClient(app=app, base_url="http://test") as ac:
-    #     await ac.post("/internal/drift", json={"drift_type": "DE-001"})
-    #     response = await ac.get("/incidents/INC-2041")
-    #     assert response.status_code == 200
-    #     assert isinstance(response.json()["status"], str)
-    pass
+async def test_drift_injector_reset():
+    async with httpx.AsyncClient() as client:
+        # Check reset endpoint
+        resp = await client.post(f"{BASE_URL}/reset")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "success"
+        assert "incident-api" in data["successes"]
+
+@pytest.mark.asyncio
+async def test_incident_api_health():
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(f"{INCIDENT_API}/health")
+        assert resp.status_code == 200
+        assert resp.json() == {"status": "ok"}
+
+@pytest.mark.asyncio
+async def test_drift_injection_incident_api():
+    async with httpx.AsyncClient() as client:
+        # Ensure it's reset
+        await client.post(f"{BASE_URL}/reset")
+        
+        # Inject drift
+        payload = {
+            "target_service": "incident-api",
+            "drift_type": "DRIFT_TYPE"
+        }
+        resp = await client.post(f"{BASE_URL}/inject", json=payload)
+        assert resp.status_code == 200
+        
+        # The environment or manual verification would verify the drift's effects.
+        # Clean up
+        await client.post(f"{BASE_URL}/reset")

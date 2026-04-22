@@ -1,4 +1,9 @@
 import json
+import os
+import logging
+from openai import OpenAI
+
+logger = logging.getLogger("primary-agent")
 
 class PrimaryAgent:
     """The Student Agent handling SRE tasks and API calls."""
@@ -22,28 +27,45 @@ Available Actions:
 - end_era: {}
 - ready_to_operate: {"world_model_summary": str}
 
-Output format: You must output ONLY a valid JSON object matching one of the actions above.
+Output format: You must output ONLY a valid JSON object with 'action_type' and 'payload' matching one of the actions above.
 """
+
+    def __init__(self):
+        self.api_key = os.getenv("OPENAI_API_KEY")
+        self.client = OpenAI(api_key=self.api_key) if self.api_key else None
+        self.model = os.getenv("PRIMARY_AGENT_MODEL", "gpt-4o-mini")
 
     def generate_action(self, observation: dict) -> dict:
         """
         Generate next action based on observation.
-        In a real run, this passes the observation to the LLM (Llama 3.1 8B).
         """
-        # Template for LLM call
-        prompt = f"{self.SYSTEM_PROMPT}\n\nObservation: {json.dumps(observation, indent=2)}\n\nAction JSON:"
-        
-        # Placeholder for actual LLM invocation
-        # return call_llm(prompt)
-        
-        # Mocking an action for now to allow testing
         if observation.get("phase") == "AWAKENING":
             return {
                 "action_type": "ready_to_operate",
                 "payload": {"world_model_summary": "Ready to investigate."}
             }
+
+        prompt = f"{self.SYSTEM_PROMPT}\n\nObservation: {json.dumps(observation, indent=2)}\n\nAction JSON:"
         
-        return {
-            "action_type": "write_reasoning",
-            "payload": {"thought": "Processing observation..."}
-        }
+        if not self.client:
+            logger.warning("No OPENAI_API_KEY set. Falling back to mock reasoning action.")
+            return {
+                "action_type": "write_reasoning",
+                "payload": {"thought": "Processing observation... (Mock fallback due to missing API key)"}
+            }
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"},
+                temperature=0.7
+            )
+            action_text = response.choices[0].message.content
+            return json.loads(action_text)
+        except Exception as e:
+            logger.error(f"LLM generation failed: {e}")
+            return {
+                "action_type": "write_reasoning",
+                "payload": {"thought": f"Error during generation: {str(e)}"}
+            }

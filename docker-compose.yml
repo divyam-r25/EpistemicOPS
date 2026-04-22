@@ -95,6 +95,8 @@ services:
     build:
       context: .
       dockerfile: ./mock_apis/drift_injector/Dockerfile
+    ports:
+      - "8006:8000"
     environment:
       - INCIDENT_API_URL=http://incident-api:8000
       - METRICS_API_URL=http://metrics-api:8000

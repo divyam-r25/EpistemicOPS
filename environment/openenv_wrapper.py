@@ -1,6 +1,7 @@
 import logging
 import asyncio
 from typing import Tuple, Dict
+import httpx
 
 from environment.world_engine import WorldEngine, Phase
 from environment.action_validator import ActionValidator
@@ -114,12 +115,77 @@ class EpistemicOpsEnv:
             obs = self._build_primary_observation("Hypothesis recorded.", None)
             
         elif action_type == "call_tool":
-            # For the mock, we simulate tool calls (in a full run, this would hit the Docker APIs via httpx)
-            obs = self._build_primary_observation("Tool execution complete", {"mocked": True})
+            tool_name = payload.get("tool")
+            args = payload.get("args", {})
+            
+            # Map tools to local Docker ports based on our architecture
+            # In a full run, the model might construct URLs directly, but we map tools for safety
+            service_ports = {
+                "incident-api": 8001,
+                "metrics-api": 8002,
+                "deploy-api": 8003,
+                "log-api": 8004,
+                "notify-api": 8005
+            }
+            
+            tool_resp = {"error": "unknown_tool"}
+            
+            try:
+                # Basic tool to HTTP mapping logic
+                if tool_name == "get_incident_status":
+                    inc_id = args.get("incident_id")
+                    url = f"http://localhost:8001/incidents/{inc_id}"
+                    async with httpx.AsyncClient() as client:
+                        r = await client.get(url, timeout=5.0)
+                        tool_resp = {"status_code": r.status_code, "body": r.json() if r.content else None}
+                elif tool_name == "resolve_incident":
+                    inc_id = args.get("incident_id")
+                    url = f"http://localhost:8001/incidents/{inc_id}/resolve"
+                    async with httpx.AsyncClient() as client:
+                        r = await client.post(url, json=args, timeout=5.0)
+                        tool_resp = {"status_code": r.status_code, "body": r.json() if r.content else None}
+                elif tool_name == "get_metrics":
+                    svc = args.get("service_name")
+                    url = f"http://localhost:8002/metrics/service/{svc}"
+                    async with httpx.AsyncClient() as client:
+                        r = await client.get(url, params=args, timeout=5.0)
+                        tool_resp = {"status_code": r.status_code, "body": r.json() if r.content else None}
+                elif tool_name == "rollback_deployment":
+                    url = "http://localhost:8003/deployments/rollback"
+                    headers = {"X-Deploy-Token": args.get("token", "")}
+                    async with httpx.AsyncClient() as client:
+                        r = await client.post(url, json=args, headers=headers, timeout=5.0)
+                        tool_resp = {"status_code": r.status_code, "body": r.json() if r.content else None}
+                elif tool_name == "query_logs":
+                    url = "http://localhost:8004/logs/query"
+                    async with httpx.AsyncClient() as client:
+                        r = await client.get(url, params=args, timeout=5.0)
+                        tool_resp = {"status_code": r.status_code, "body": r.json() if r.content else None}
+                elif tool_name == "send_notification":
+                    url = "http://localhost:8005/notifications/send"
+                    async with httpx.AsyncClient() as client:
+                        r = await client.post(url, json=args, timeout=5.0)
+                        tool_resp = {"status_code": r.status_code, "body": r.json() if r.content else None}
+                else:
+                    # Fallback to direct HTTP call if tool_name is formatted as method:url
+                    if ":" in str(tool_name):
+                        method, url = tool_name.split(":", 1)
+                        async with httpx.AsyncClient() as client:
+                            if method.upper() == "GET":
+                                r = await client.get(url, params=args, timeout=5.0)
+                            else:
+                                r = await client.post(url, json=args, timeout=5.0)
+                            tool_resp = {"status_code": r.status_code, "body": r.json() if r.content else None}
+            except Exception as e:
+                tool_resp = {"error": str(e)}
+
+            obs = self._build_primary_observation("Tool execution complete", tool_resp)
             
             # If we are in DRIFT_INJECTION and a tool fails, transition to SOCRATIC_RECOVERY
             if self.world.state.phase == Phase.DRIFT_INJECTION:
-                self.world.transition_phase(Phase.SOCRATIC_RECOVERY)
+                # Assuming HTTP error or explicit string parsing
+                if tool_resp.get("status_code", 200) >= 400 or "error" in tool_resp:
+                    self.world.transition_phase(Phase.SOCRATIC_RECOVERY)
                 
         elif action_type == "write_legacy":
             doc_text, truncated, stats = self.parser.parse_and_truncate(payload.get("content", ""))

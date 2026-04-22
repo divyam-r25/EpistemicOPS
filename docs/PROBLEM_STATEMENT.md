@@ -214,8 +214,6 @@ The Drift Injector switches a service from stable to drifted mode at a random ti
 | `deploy-api` | `/deployments` | Kubernetes / ArgoCD | Auth headers, rollback schema |
 | `log-api` | `/logs` | Splunk / ELK | Query syntax, pagination format |
 | `notify-api` | `/notifications` | Slack / PagerDuty | Webhook schema, rate limits |
-| `config-api` | `/config` | Consul / Vault | Key format, secret structure |
-| `db-api` | `/database` | RDS / Postgres proxy | Connection schema, error codes |
 
 ---
 
