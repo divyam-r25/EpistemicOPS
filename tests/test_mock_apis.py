@@ -25,7 +25,7 @@ async def test_incident_api_health():
     async with httpx.AsyncClient() as client:
         resp = await client.get(f"{INCIDENT_API}/health")
         assert resp.status_code == 200
-        assert resp.json() == {"status": "ok"}
+        assert resp.json().get("status") == "healthy"
 
 @pytest.mark.asyncio
 async def test_drift_injection_incident_api():

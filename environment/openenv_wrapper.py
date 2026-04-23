@@ -73,8 +73,6 @@ class EpistemicOpsEnv:
 
         reward = 0.0
         done = False
-        info = {"phase": self.world.state.phase.value, "step": self.world.state.step}
-
         # 2. Process Action based on Role
         if agent_role == "primary":
             obs, done = await self._handle_primary_action(action_type, payload)
@@ -95,6 +93,7 @@ class EpistemicOpsEnv:
                         self.world.record_drift(drift)
                         self.world.transition_phase(Phase.DRIFT_INJECTION)
 
+        info = {"phase": self.world.state.phase.value, "step": self.world.state.step}
         info["state"] = self.world.state.to_dict()
         return obs, reward, done, info
 
