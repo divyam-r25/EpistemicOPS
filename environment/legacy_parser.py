@@ -15,21 +15,31 @@ class LegacyParser:
     
     def __init__(self, max_tokens: int = 2048):
         self.max_tokens = max_tokens
-        from transformers import AutoTokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained("gpt2")
+        # Zero-dependency token estimator: ~4 characters per token
+        # This is a well-established approximation used in production systems.
+        # No download, no network, no external files required.
+        self._chars_per_token = 4
+
+    def _count_tokens(self, text: str) -> int:
+        """Estimate token count. ~4 chars per token for English text."""
+        return max(1, len(text) // self._chars_per_token)
+
+    def _truncate_to_tokens(self, text: str, max_tokens: int) -> str:
+        """Truncate text to approximately max_tokens tokens."""
+        max_chars = max_tokens * self._chars_per_token
+        return text[:max_chars]
 
     def parse_and_truncate(self, doc_text: str) -> Tuple[str, bool, dict]:
         """
         Enforce token limit and evaluate structural compliance.
         Returns: (truncated_doc, was_truncated, compliance_stats)
         """
-        tokens = self.tokenizer.encode(doc_text)
+        token_count = self._count_tokens(doc_text)
         was_truncated = False
         
-        if len(tokens) > self.max_tokens:
+        if token_count > self.max_tokens:
             was_truncated = True
-            tokens = tokens[:self.max_tokens]
-            doc_text = self.tokenizer.decode(tokens, skip_special_tokens=True)
+            doc_text = self._truncate_to_tokens(doc_text, self.max_tokens)
             doc_text += "\n\n[TRUNCATED BY ENVIRONMENT ENGINE: 2048 TOKEN LIMIT REACHED]"
             
         stats = self._evaluate_structure(doc_text)
