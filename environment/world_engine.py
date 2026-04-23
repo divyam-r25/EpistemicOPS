@@ -46,7 +46,8 @@ class WorldState:
             "deployment_history": self.deployment_history,
             "current_task_brief": self.current_task_brief,
             "legacy_document_store": self.legacy_document_store,
-            "drift_events_fired": self.drift_events_fired
+            "drift_events_fired": self.drift_events_fired,
+            "reward_state": getattr(self, "reward_state", {})
         }
 
 class WorldEngine:

@@ -50,14 +50,14 @@ def update_ui(state_data):
     incidents = state_data.get("incident_history", [])
     inc_df = pd.DataFrame(incidents) if incidents else pd.DataFrame([{"ID": "None", "Status": "N/A"}])
     
-    # We will just show empty rewards for now, unless we fetch from a training log
+    reward_state = state_data.get("reward_state", {})
     rewards_data = [
-        ["R_era_task", "0.0"],
-        ["R_calibration", "1.0x"],
-        ["R_teacher_Δ", "0.0"],
-        ["R_legacy_util", "0.0"],
-        ["R_leakage", "0.0"],
-        ["TOTAL", "0.0"]
+        ["R_era_task",    f"{reward_state.get('R_era_task', 0.0):.3f}"],
+        ["R_calibration", f"{reward_state.get('R_calibration', 1.0):.2f}×"],
+        ["R_teacher_Δ",   f"{reward_state.get('R_teacher_delta', 0.0):.3f}"],
+        ["R_legacy_util", f"{reward_state.get('R_legacy_utility', 0.0):.3f}"],
+        ["R_leakage",     f"{reward_state.get('R_answer_leakage', 0.0):.3f}"],
+        ["TOTAL",         f"{reward_state.get('R_normalized', 0.0):.3f}"],
     ]
     rewards_df = pd.DataFrame(rewards_data, columns=["Component", "Value"])
     

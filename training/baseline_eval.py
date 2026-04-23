@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 
 from environment.openenv_wrapper import EpistemicOpsEnv
+from environment.scenario_loader import ScenarioLoader
 from reward import compute_total_reward
 
 logging.basicConfig(level=logging.INFO)
@@ -25,7 +26,12 @@ async def run_baseline_evaluation():
     for scenario in scenarios_to_run:
         logger.info(f"Evaluating scenario: {scenario}")
         # Load scenario config (mocked here, would load from yaml)
-        scenario_config = {"id": scenario, "eras": [{"era_id": e} for e in range(1, 6)]}
+        _loader = ScenarioLoader()
+        scenario_obj = _loader.get_scenario(scenario)
+        if not scenario_obj:
+            logger.warning(f"Scenario '{scenario}' not found. Skipping.")
+            continue
+        scenario_config = scenario_obj.model_dump()
         
         scenario_results = []
         legacy_doc = None

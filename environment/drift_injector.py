@@ -4,10 +4,14 @@ from typing import List, Dict
 
 logger = logging.getLogger("drift-injector")
 
+import os
+
 class DriftInjector:
     """Schedules and executes drift events on mock APIs mid-era."""
     
-    def __init__(self, injector_url: str = "http://localhost:8006"):
+    def __init__(self, injector_url: str = None):
+        if injector_url is None:
+            injector_url = os.getenv("DRIFT_INJECTOR_URL", "http://localhost:8006")
         self.injector_url = injector_url
         self.active_drifts = []
 

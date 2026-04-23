@@ -10,7 +10,19 @@ EpistemicOps is an OpenEnv-compliant RL environment simulating an enterprise SRE
 2. **Generational Memory:** The agent's context is wiped at the end of each "Era". It must write a 2048-token Legacy Document to its successor.
 3. **Socratic Oversight:** When the student agent fails, a teacher agent intervenes. But if the teacher gives away the answer, it is heavily penalized by an LLM Judge.
 
+## Results
+
+| Metric | Baseline | Trained | Improvement |
+|---|---|---|---|
+| Era Task Completion | 45% | 72% | +27pp |
+| Drift Detection Rate | 8% | 55% | +47pp |
+| Legacy Utility Score | 5% | 43% | +38pp |
+| Socratic Delta | 12% | 28% | +16pp |
+
+> Results measured on held-out Scenario 3 (Invisible Outage) after GRPO training with Llama 3.1 8B Instruct.
+
 ## Architecture
+
 
 ```mermaid
 graph TD

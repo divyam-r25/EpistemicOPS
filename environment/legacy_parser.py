@@ -1,6 +1,5 @@
 import re
 from typing import Dict, Tuple, List
-import tiktoken
 
 class LegacyParser:
     """Parses, scores, and truncates Legacy Documents written by the Primary Agent."""
@@ -16,7 +15,8 @@ class LegacyParser:
     
     def __init__(self, max_tokens: int = 2048):
         self.max_tokens = max_tokens
-        self.tokenizer = tiktoken.get_encoding("cl100k_base")
+        from transformers import AutoTokenizer
+        self.tokenizer = AutoTokenizer.from_pretrained("gpt2")
 
     def parse_and_truncate(self, doc_text: str) -> Tuple[str, bool, dict]:
         """
@@ -29,7 +29,7 @@ class LegacyParser:
         if len(tokens) > self.max_tokens:
             was_truncated = True
             tokens = tokens[:self.max_tokens]
-            doc_text = self.tokenizer.decode(tokens)
+            doc_text = self.tokenizer.decode(tokens, skip_special_tokens=True)
             doc_text += "\n\n[TRUNCATED BY ENVIRONMENT ENGINE: 2048 TOKEN LIMIT REACHED]"
             
         stats = self._evaluate_structure(doc_text)

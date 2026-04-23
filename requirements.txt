@@ -1,49 +1,19 @@
-# EpistemicOps - Production Dependencies
-# ========================================
-
-# --- Core Web Framework (Mock APIs) ---
 fastapi>=0.104.0
-uvicorn[standard]>=0.24.0
+uvicorn>=0.24.0
 httpx>=0.25.0
 pydantic>=2.5.0
-
-# --- Configuration & Serialization ---
 pyyaml>=6.0.1
-python-dotenv>=1.0.0
-
-# --- Docker Management ---
 docker>=7.0.0
-
-# --- LLM Judge APIs ---
 anthropic>=0.40.0
 openai>=1.50.0
-
-# --- Token Counting ---
-tiktoken>=0.5.0
-
-# --- Demo UI ---
 gradio>=4.0.0
-
-# --- ML / Training ---
 torch>=2.1.0
 transformers>=4.36.0
-trl==0.7.4
+trl>=0.7.0
 unsloth>=2024.1
 datasets>=2.16.0
-accelerate>=0.25.0
-bitsandbytes>=0.41.0
-peft>=0.7.0
-
-# --- Evaluation & Visualization ---
 matplotlib>=3.8.0
 numpy>=1.24.0
-pandas>=2.1.0
-scipy>=1.11.0
-
-# --- Testing ---
 pytest>=7.4.0
 pytest-asyncio>=0.23.0
-pytest-cov>=4.1.0
 
-# --- Logging ---
-rich>=13.7.0
