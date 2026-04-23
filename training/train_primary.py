@@ -24,6 +24,7 @@ from environment.scenario_loader import ScenarioLoader
 from environment.action_validator import ActionValidator
 from reward import compute_total_reward
 from reward.anti_hack_penalty import compute_anti_hack_penalty
+from training.curriculum import CurriculumScheduler
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("train-primary")
@@ -31,6 +32,7 @@ logger = logging.getLogger("train-primary")
 # ─── Globals (initialised once, reused across reward function calls) ─────────
 _scenario_loader = ScenarioLoader()
 _validator = ActionValidator()
+_curriculum = CurriculumScheduler()
 
 
 # ─── Reward Function ──────────────────────────────────────────────────────────

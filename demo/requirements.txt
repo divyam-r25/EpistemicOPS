@@ -1,0 +1,9 @@
+# EpistemicOps — Demo Requirements (HF Spaces / No-GPU)
+gradio>=4.0.0
+pandas>=2.0.0
+matplotlib>=3.8.0
+numpy>=1.24.0
+httpx>=0.25.0
+pydantic>=2.5.0
+pyyaml>=6.0.1
+fastapi>=0.104.0

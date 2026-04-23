@@ -1,188 +1,410 @@
 {
   "cascading_incident": [
     {
-      "R_era_task": 0.45,
-      "R_calibration": 1.0,
-      "R_era_task_adjusted": 0.45,
-      "R_teacher_delta": 0.15,
-      "R_legacy_utility": 0.05,
-      "R_answer_leakage": 0.0,
+      "run": 1,
+      "era_id": 1,
+      "R_era_task": 0.5,
+      "R_calibration": 0.52,
+      "R_era_task_adjusted": 0.26,
+      "R_teacher_delta": 0.0,
+      "R_legacy_utility": 0.35,
+      "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.65,
-      "R_normalized": 0.1857,
-      "R_max_possible": 3.5
+      "R_total": 0.61,
+      "R_normalized": 0.1743,
+      "R_max_possible": 3.5,
+      "criteria_met": [
+        "legacy_doc_written"
+      ],
+      "criteria_total": [
+        "incident_resolved",
+        "legacy_doc_written"
+      ],
+      "steps_taken": 8
     },
     {
-      "R_era_task": 0.45,
-      "R_calibration": 1.0,
-      "R_era_task_adjusted": 0.45,
-      "R_teacher_delta": 0.15,
-      "R_legacy_utility": 0.05,
-      "R_answer_leakage": 0.0,
+      "run": 1,
+      "era_id": 2,
+      "R_era_task": 0.5,
+      "R_calibration": 0.52,
+      "R_era_task_adjusted": 0.26,
+      "R_teacher_delta": 0.0,
+      "R_legacy_utility": 0.35,
+      "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.65,
-      "R_normalized": 0.1857,
-      "R_max_possible": 3.5
+      "R_total": 0.61,
+      "R_normalized": 0.1743,
+      "R_max_possible": 3.5,
+      "criteria_met": [
+        "legacy_doc_written"
+      ],
+      "criteria_total": [
+        "deploy_successful",
+        "legacy_doc_written"
+      ],
+      "steps_taken": 8
     },
     {
-      "R_era_task": 0.45,
-      "R_calibration": 1.0,
-      "R_era_task_adjusted": 0.45,
-      "R_teacher_delta": 0.15,
-      "R_legacy_utility": 0.05,
-      "R_answer_leakage": 0.0,
+      "run": 2,
+      "era_id": 1,
+      "R_era_task": 0.5,
+      "R_calibration": 0.52,
+      "R_era_task_adjusted": 0.26,
+      "R_teacher_delta": 0.0,
+      "R_legacy_utility": 0.35,
+      "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.65,
-      "R_normalized": 0.1857,
-      "R_max_possible": 3.5
+      "R_total": 0.61,
+      "R_normalized": 0.1743,
+      "R_max_possible": 3.5,
+      "criteria_met": [
+        "legacy_doc_written"
+      ],
+      "criteria_total": [
+        "incident_resolved",
+        "legacy_doc_written"
+      ],
+      "steps_taken": 8
     },
     {
-      "R_era_task": 0.45,
-      "R_calibration": 1.0,
-      "R_era_task_adjusted": 0.45,
-      "R_teacher_delta": 0.15,
-      "R_legacy_utility": 0.05,
-      "R_answer_leakage": 0.0,
+      "run": 2,
+      "era_id": 2,
+      "R_era_task": 0.5,
+      "R_calibration": 0.52,
+      "R_era_task_adjusted": 0.26,
+      "R_teacher_delta": 0.0,
+      "R_legacy_utility": 0.35,
+      "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.65,
-      "R_normalized": 0.1857,
-      "R_max_possible": 3.5
+      "R_total": 0.61,
+      "R_normalized": 0.1743,
+      "R_max_possible": 3.5,
+      "criteria_met": [
+        "legacy_doc_written"
+      ],
+      "criteria_total": [
+        "deploy_successful",
+        "legacy_doc_written"
+      ],
+      "steps_taken": 8
     },
     {
-      "R_era_task": 0.45,
-      "R_calibration": 1.0,
-      "R_era_task_adjusted": 0.45,
-      "R_teacher_delta": 0.15,
-      "R_legacy_utility": 0.05,
-      "R_answer_leakage": 0.0,
+      "run": 3,
+      "era_id": 1,
+      "R_era_task": 0.5,
+      "R_calibration": 0.52,
+      "R_era_task_adjusted": 0.26,
+      "R_teacher_delta": 0.0,
+      "R_legacy_utility": 0.35,
+      "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.65,
-      "R_normalized": 0.1857,
-      "R_max_possible": 3.5
+      "R_total": 0.61,
+      "R_normalized": 0.1743,
+      "R_max_possible": 3.5,
+      "criteria_met": [
+        "legacy_doc_written"
+      ],
+      "criteria_total": [
+        "incident_resolved",
+        "legacy_doc_written"
+      ],
+      "steps_taken": 8
+    },
+    {
+      "run": 3,
+      "era_id": 2,
+      "R_era_task": 0.5,
+      "R_calibration": 0.52,
+      "R_era_task_adjusted": 0.26,
+      "R_teacher_delta": 0.0,
+      "R_legacy_utility": 0.35,
+      "R_answer_leakage": -0.0,
+      "R_anti_hack_penalty": 0.0,
+      "R_total": 0.61,
+      "R_normalized": 0.1743,
+      "R_max_possible": 3.5,
+      "criteria_met": [
+        "legacy_doc_written"
+      ],
+      "criteria_total": [
+        "deploy_successful",
+        "legacy_doc_written"
+      ],
+      "steps_taken": 8
     }
   ],
   "deployment_disaster": [
     {
-      "R_era_task": 0.45,
-      "R_calibration": 1.0,
-      "R_era_task_adjusted": 0.45,
-      "R_teacher_delta": 0.15,
-      "R_legacy_utility": 0.05,
-      "R_answer_leakage": 0.0,
+      "run": 1,
+      "era_id": 1,
+      "R_era_task": 0.5,
+      "R_calibration": 0.52,
+      "R_era_task_adjusted": 0.26,
+      "R_teacher_delta": 0.0,
+      "R_legacy_utility": 0.35,
+      "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.65,
-      "R_normalized": 0.1857,
-      "R_max_possible": 3.5
+      "R_total": 0.61,
+      "R_normalized": 0.1743,
+      "R_max_possible": 3.5,
+      "criteria_met": [
+        "legacy_doc_written"
+      ],
+      "criteria_total": [
+        "deploy_successful",
+        "legacy_doc_written"
+      ],
+      "steps_taken": 8
     },
     {
-      "R_era_task": 0.45,
-      "R_calibration": 1.0,
-      "R_era_task_adjusted": 0.45,
-      "R_teacher_delta": 0.15,
-      "R_legacy_utility": 0.05,
-      "R_answer_leakage": 0.0,
+      "run": 1,
+      "era_id": 2,
+      "R_era_task": 0.5,
+      "R_calibration": 0.52,
+      "R_era_task_adjusted": 0.26,
+      "R_teacher_delta": 0.0,
+      "R_legacy_utility": 0.35,
+      "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.65,
-      "R_normalized": 0.1857,
-      "R_max_possible": 3.5
+      "R_total": 0.61,
+      "R_normalized": 0.1743,
+      "R_max_possible": 3.5,
+      "criteria_met": [
+        "legacy_doc_written"
+      ],
+      "criteria_total": [
+        "deploy_successful",
+        "legacy_doc_written"
+      ],
+      "steps_taken": 8
     },
     {
-      "R_era_task": 0.45,
-      "R_calibration": 1.0,
-      "R_era_task_adjusted": 0.45,
-      "R_teacher_delta": 0.15,
-      "R_legacy_utility": 0.05,
-      "R_answer_leakage": 0.0,
+      "run": 2,
+      "era_id": 1,
+      "R_era_task": 0.5,
+      "R_calibration": 0.52,
+      "R_era_task_adjusted": 0.26,
+      "R_teacher_delta": 0.0,
+      "R_legacy_utility": 0.35,
+      "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.65,
-      "R_normalized": 0.1857,
-      "R_max_possible": 3.5
+      "R_total": 0.61,
+      "R_normalized": 0.1743,
+      "R_max_possible": 3.5,
+      "criteria_met": [
+        "legacy_doc_written"
+      ],
+      "criteria_total": [
+        "deploy_successful",
+        "legacy_doc_written"
+      ],
+      "steps_taken": 8
     },
     {
-      "R_era_task": 0.45,
-      "R_calibration": 1.0,
-      "R_era_task_adjusted": 0.45,
-      "R_teacher_delta": 0.15,
-      "R_legacy_utility": 0.05,
-      "R_answer_leakage": 0.0,
+      "run": 2,
+      "era_id": 2,
+      "R_era_task": 0.5,
+      "R_calibration": 0.52,
+      "R_era_task_adjusted": 0.26,
+      "R_teacher_delta": 0.0,
+      "R_legacy_utility": 0.35,
+      "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.65,
-      "R_normalized": 0.1857,
-      "R_max_possible": 3.5
+      "R_total": 0.61,
+      "R_normalized": 0.1743,
+      "R_max_possible": 3.5,
+      "criteria_met": [
+        "legacy_doc_written"
+      ],
+      "criteria_total": [
+        "deploy_successful",
+        "legacy_doc_written"
+      ],
+      "steps_taken": 8
     },
     {
-      "R_era_task": 0.45,
-      "R_calibration": 1.0,
-      "R_era_task_adjusted": 0.45,
-      "R_teacher_delta": 0.15,
-      "R_legacy_utility": 0.05,
-      "R_answer_leakage": 0.0,
+      "run": 3,
+      "era_id": 1,
+      "R_era_task": 0.5,
+      "R_calibration": 0.52,
+      "R_era_task_adjusted": 0.26,
+      "R_teacher_delta": 0.0,
+      "R_legacy_utility": 0.35,
+      "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.65,
-      "R_normalized": 0.1857,
-      "R_max_possible": 3.5
+      "R_total": 0.61,
+      "R_normalized": 0.1743,
+      "R_max_possible": 3.5,
+      "criteria_met": [
+        "legacy_doc_written"
+      ],
+      "criteria_total": [
+        "deploy_successful",
+        "legacy_doc_written"
+      ],
+      "steps_taken": 8
+    },
+    {
+      "run": 3,
+      "era_id": 2,
+      "R_era_task": 0.5,
+      "R_calibration": 0.52,
+      "R_era_task_adjusted": 0.26,
+      "R_teacher_delta": 0.0,
+      "R_legacy_utility": 0.35,
+      "R_answer_leakage": -0.0,
+      "R_anti_hack_penalty": 0.0,
+      "R_total": 0.61,
+      "R_normalized": 0.1743,
+      "R_max_possible": 3.5,
+      "criteria_met": [
+        "legacy_doc_written"
+      ],
+      "criteria_total": [
+        "deploy_successful",
+        "legacy_doc_written"
+      ],
+      "steps_taken": 8
     }
   ],
   "invisible_outage": [
     {
-      "R_era_task": 0.45,
-      "R_calibration": 1.0,
-      "R_era_task_adjusted": 0.45,
-      "R_teacher_delta": 0.15,
-      "R_legacy_utility": 0.05,
-      "R_answer_leakage": 0.0,
+      "run": 1,
+      "era_id": 1,
+      "R_era_task": 1.0,
+      "R_calibration": 0.52,
+      "R_era_task_adjusted": 0.52,
+      "R_teacher_delta": 0.0,
+      "R_legacy_utility": 0.35,
+      "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.65,
-      "R_normalized": 0.1857,
-      "R_max_possible": 3.5
+      "R_total": 0.87,
+      "R_normalized": 0.2486,
+      "R_max_possible": 3.5,
+      "criteria_met": [
+        "incident_identified",
+        "legacy_doc_written"
+      ],
+      "criteria_total": [
+        "incident_identified",
+        "legacy_doc_written"
+      ],
+      "steps_taken": 8
     },
     {
-      "R_era_task": 0.45,
-      "R_calibration": 1.0,
-      "R_era_task_adjusted": 0.45,
-      "R_teacher_delta": 0.15,
-      "R_legacy_utility": 0.05,
-      "R_answer_leakage": 0.0,
+      "run": 1,
+      "era_id": 2,
+      "R_era_task": 1.0,
+      "R_calibration": 0.52,
+      "R_era_task_adjusted": 0.52,
+      "R_teacher_delta": 0.0,
+      "R_legacy_utility": 0.35,
+      "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.65,
-      "R_normalized": 0.1857,
-      "R_max_possible": 3.5
+      "R_total": 0.87,
+      "R_normalized": 0.2486,
+      "R_max_possible": 3.5,
+      "criteria_met": [
+        "proxies_scaled",
+        "legacy_doc_written"
+      ],
+      "criteria_total": [
+        "proxies_scaled",
+        "legacy_doc_written"
+      ],
+      "steps_taken": 8
     },
     {
-      "R_era_task": 0.45,
-      "R_calibration": 1.0,
-      "R_era_task_adjusted": 0.45,
-      "R_teacher_delta": 0.15,
-      "R_legacy_utility": 0.05,
-      "R_answer_leakage": 0.0,
+      "run": 2,
+      "era_id": 1,
+      "R_era_task": 1.0,
+      "R_calibration": 0.52,
+      "R_era_task_adjusted": 0.52,
+      "R_teacher_delta": 0.0,
+      "R_legacy_utility": 0.35,
+      "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.65,
-      "R_normalized": 0.1857,
-      "R_max_possible": 3.5
+      "R_total": 0.87,
+      "R_normalized": 0.2486,
+      "R_max_possible": 3.5,
+      "criteria_met": [
+        "incident_identified",
+        "legacy_doc_written"
+      ],
+      "criteria_total": [
+        "incident_identified",
+        "legacy_doc_written"
+      ],
+      "steps_taken": 8
     },
     {
-      "R_era_task": 0.45,
-      "R_calibration": 1.0,
-      "R_era_task_adjusted": 0.45,
-      "R_teacher_delta": 0.15,
-      "R_legacy_utility": 0.05,
-      "R_answer_leakage": 0.0,
+      "run": 2,
+      "era_id": 2,
+      "R_era_task": 1.0,
+      "R_calibration": 0.52,
+      "R_era_task_adjusted": 0.52,
+      "R_teacher_delta": 0.0,
+      "R_legacy_utility": 0.35,
+      "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.65,
-      "R_normalized": 0.1857,
-      "R_max_possible": 3.5
+      "R_total": 0.87,
+      "R_normalized": 0.2486,
+      "R_max_possible": 3.5,
+      "criteria_met": [
+        "proxies_scaled",
+        "legacy_doc_written"
+      ],
+      "criteria_total": [
+        "proxies_scaled",
+        "legacy_doc_written"
+      ],
+      "steps_taken": 8
     },
     {
-      "R_era_task": 0.45,
-      "R_calibration": 1.0,
-      "R_era_task_adjusted": 0.45,
-      "R_teacher_delta": 0.15,
-      "R_legacy_utility": 0.05,
-      "R_answer_leakage": 0.0,
+      "run": 3,
+      "era_id": 1,
+      "R_era_task": 1.0,
+      "R_calibration": 0.52,
+      "R_era_task_adjusted": 0.52,
+      "R_teacher_delta": 0.0,
+      "R_legacy_utility": 0.35,
+      "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.65,
-      "R_normalized": 0.1857,
-      "R_max_possible": 3.5
+      "R_total": 0.87,
+      "R_normalized": 0.2486,
+      "R_max_possible": 3.5,
+      "criteria_met": [
+        "incident_identified",
+        "legacy_doc_written"
+      ],
+      "criteria_total": [
+        "incident_identified",
+        "legacy_doc_written"
+      ],
+      "steps_taken": 8
+    },
+    {
+      "run": 3,
+      "era_id": 2,
+      "R_era_task": 1.0,
+      "R_calibration": 0.52,
+      "R_era_task_adjusted": 0.52,
+      "R_teacher_delta": 0.0,
+      "R_legacy_utility": 0.35,
+      "R_answer_leakage": -0.0,
+      "R_anti_hack_penalty": 0.0,
+      "R_total": 0.87,
+      "R_normalized": 0.2486,
+      "R_max_possible": 3.5,
+      "criteria_met": [
+        "proxies_scaled",
+        "legacy_doc_written"
+      ],
+      "criteria_total": [
+        "proxies_scaled",
+        "legacy_doc_written"
+      ],
+      "steps_taken": 8
     }
   ]
 }

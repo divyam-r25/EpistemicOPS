@@ -34,6 +34,8 @@ class EpistemicOpsEnv:
     def reset(self, scenario_config: dict, era_id: int = 1, legacy_doc: str = None) -> dict:
         """
         Reset environment to start of a scenario era.
+        NOTE: This is a synchronous method. Drift injector reset is handled
+        by the orchestration layer (run_episode.py) to avoid async conflicts.
         """
         self.scenario_id = scenario_config.get("id")
         self.world.initialize_era(scenario_config, era_id, legacy_doc)
@@ -43,17 +45,7 @@ class EpistemicOpsEnv:
         self.oversight_interventions = []
         self.primary_reasoning_trace = []
         self.current_legacy_doc = None
-        
-        # Ensure APIs are stable (async run synchronously for the interface)
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # We are in an async context
-                asyncio.create_task(self.injector.reset_all())
-            else:
-                loop.run_until_complete(self.injector.reset_all())
-        except Exception as e:
-            logger.warning(f"Could not reset mock APIs (they might not be running): {e}")
+        self.injector.active_drifts = []
 
         # Return initial observation
         return self._build_primary_observation("AWAKENING", None)
@@ -111,6 +103,7 @@ class EpistemicOpsEnv:
             obs = self._build_primary_observation("Reasoning recorded.", None)
             
         elif action_type == "declare_hypothesis":
+            self.world.state.hypotheses_declared.append(payload)
             obs = self._build_primary_observation("Hypothesis recorded.", None)
             
         elif action_type == "call_tool":
@@ -178,23 +171,40 @@ class EpistemicOpsEnv:
             except Exception as e:
                 tool_resp = {"error": str(e)}
 
+            # Track tool call and results in world state
+            self.world.state.tool_calls_made.append({
+                "tool": tool_name, "args": args,
+                "result": tool_resp, "step": self.world.state.step
+            })
+            
+            # Track specific outcomes for criteria evaluation
+            if tool_name == "resolve_incident" and tool_resp.get("status_code") == 204:
+                self.world.state.incidents_resolved.append(args.get("incident_id", ""))
+            if tool_name == "rollback_deployment" and tool_resp.get("status_code") in (200, 204):
+                self.world.state.deployments_completed.append({"type": "rollback", "step": self.world.state.step})
+            if tool_name == "send_notification" and tool_resp.get("status_code") == 200:
+                body = tool_resp.get("body", {})
+                if isinstance(body, dict) and body.get("delivered", False):
+                    self.world.state.notifications_sent.append(body)
+
             obs = self._build_primary_observation("Tool execution complete", tool_resp)
             
             # If we are in DRIFT_INJECTION and a tool fails, transition to SOCRATIC_RECOVERY
             if self.world.state.phase == Phase.DRIFT_INJECTION:
-                # Assuming HTTP error or explicit string parsing
                 if tool_resp.get("status_code", 200) >= 400 or "error" in tool_resp:
                     self.world.transition_phase(Phase.SOCRATIC_RECOVERY)
                 
         elif action_type == "write_legacy":
             doc_text, truncated, stats = self.parser.parse_and_truncate(payload.get("content", ""))
             self.current_legacy_doc = doc_text
+            self.world.state.legacy_doc_written = True
             msg = f"Legacy document saved. Compliance score: {stats['compliance_score']}"
             if truncated:
                 msg += " (Truncated to 2048 tokens)"
             obs = self._build_primary_observation(msg, None)
             
         elif action_type == "declare_task_complete":
+            self.world.state.task_declared_complete = True
             self.world.transition_phase(Phase.LEGACY_GENERATION)
             obs = self._build_primary_observation("Task declared complete. Please write legacy document.", None)
             
@@ -214,20 +224,28 @@ class EpistemicOpsEnv:
         """Process actions taken by the Oversight Agent."""
         reward = 0.0
         
-        # Check for answer leakage
-        message_content = str(list(payload.values())[0])  # Extract the question/reframe string
+        # Safely extract message content from payload
+        if payload and len(payload) > 0:
+            message_content = str(list(payload.values())[0])
+        else:
+            message_content = f"[{action_type}]"
         
+        # Check for answer leakage against the most recent drift event
         leakage_score = 0.0
         if self.world.state.drift_events_fired:
+            last_drift = self.world.state.drift_events_fired[-1]
+            # Handle both dict and Pydantic model drift events
+            drift_dict = last_drift if isinstance(last_drift, dict) else last_drift.model_dump() if hasattr(last_drift, 'model_dump') else {}
             leakage_score = self.leakage_detector.evaluate_leakage(
                 message_content, 
-                self.world.state.drift_events_fired[-1]
+                drift_dict
             )
             
         self.oversight_interventions.append({
             "action": action_type,
             "content": message_content,
-            "leakage": leakage_score
+            "leakage": leakage_score,
+            "step": self.world.state.step
         })
         
         # Send intervention to primary agent

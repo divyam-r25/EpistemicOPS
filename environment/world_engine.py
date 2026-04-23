@@ -33,6 +33,14 @@ class WorldState:
         self.current_task_brief = ""
         self.legacy_document_store = {}
         self.drift_events_fired = []
+        # Criteria tracking — set by the environment during action execution
+        self.incidents_resolved = []
+        self.deployments_completed = []
+        self.notifications_sent = []
+        self.hypotheses_declared = []
+        self.tool_calls_made = []
+        self.legacy_doc_written = False
+        self.task_declared_complete = False
 
     def to_dict(self) -> dict:
         return {
@@ -47,6 +55,9 @@ class WorldState:
             "current_task_brief": self.current_task_brief,
             "legacy_document_store": self.legacy_document_store,
             "drift_events_fired": self.drift_events_fired,
+            "incidents_resolved": self.incidents_resolved,
+            "legacy_doc_written": self.legacy_doc_written,
+            "task_declared_complete": self.task_declared_complete,
             "reward_state": getattr(self, "reward_state", {})
         }
 
@@ -96,3 +107,33 @@ class WorldEngine:
     def update_trust(self, entity: str, new_score: float):
         if entity in self.state.team_trust_scores:
             self.state.team_trust_scores[entity] = max(0.0, min(1.0, new_score))
+
+    def evaluate_success_criteria(self, criteria_list: List[str]) -> List[str]:
+        """Check which success criteria have been met based on actual state."""
+        met = []
+        for criterion in criteria_list:
+            if criterion == "incident_resolved" and len(self.state.incidents_resolved) > 0:
+                met.append(criterion)
+            elif criterion == "legacy_doc_written" and self.state.legacy_doc_written:
+                met.append(criterion)
+            elif criterion == "deploy_successful" and len(self.state.deployments_completed) > 0:
+                met.append(criterion)
+            elif criterion == "slo_breach_avoided":
+                # Considered met if task was completed before max_steps
+                if self.state.task_declared_complete:
+                    met.append(criterion)
+            elif criterion == "rollback_successful" and any(
+                d.get("type") == "rollback" for d in self.state.deployments_completed
+            ):
+                met.append(criterion)
+            elif criterion == "notifications_delivered" and len(self.state.notifications_sent) > 0:
+                met.append(criterion)
+            elif criterion in ("automation_deployed", "pipeline_hardened",
+                               "root_cause_documented", "gate_implemented",
+                               "incident_identified", "proxies_scaled",
+                               "trust_drop_explained", "audit_completed",
+                               "synthetics_deployed"):
+                # These are met if the agent declared the task complete
+                if self.state.task_declared_complete:
+                    met.append(criterion)
+        return met

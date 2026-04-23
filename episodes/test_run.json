@@ -1,0 +1,446 @@
+{
+  "scenario_id": "cascading_incident",
+  "scenario_name": "The Cascading Incident",
+  "num_eras": 3,
+  "timestamp": "2026-04-23T21:06:16.685135+00:00",
+  "avg_normalized_reward": 0.1825,
+  "era_results": [
+    {
+      "era_id": 1,
+      "steps_taken": 8,
+      "criteria_met": [
+        "legacy_doc_written"
+      ],
+      "criteria_total": [
+        "incident_resolved",
+        "legacy_doc_written"
+      ],
+      "drifts_fired": 0,
+      "drifts_detected": 0,
+      "legacy_doc_written": true,
+      "oversight_interventions": 0,
+      "reward": {
+        "R_era_task": 0.5,
+        "R_calibration": 0.5200000000000001,
+        "R_era_task_adjusted": 0.26000000000000006,
+        "R_teacher_delta": 0.0,
+        "R_legacy_utility": 0.35000000000000003,
+        "R_answer_leakage": -0.0,
+        "R_anti_hack_penalty": 0.0,
+        "R_total": 0.6100000000000001,
+        "R_normalized": 0.1743,
+        "R_max_possible": 3.5
+      },
+      "trajectory": [
+        {
+          "step": 0,
+          "agent": "primary",
+          "action": {
+            "action_type": "ready_to_operate",
+            "payload": {
+              "world_model_summary": "Ready. Legacy doc available: False"
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 1,
+          "agent": "primary",
+          "action": {
+            "action_type": "call_tool",
+            "payload": {
+              "tool": "get_incident_status",
+              "args": {
+                "incident_id": "INC-2041"
+              }
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 2,
+          "agent": "primary",
+          "action": {
+            "action_type": "declare_hypothesis",
+            "payload": {
+              "hypothesis": "The incident may be related to connection pool exhaustion",
+              "confidence": 0.7
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 3,
+          "agent": "primary",
+          "action": {
+            "action_type": "call_tool",
+            "payload": {
+              "tool": "get_metrics",
+              "args": {
+                "service_name": "payment-service",
+                "metric": "latency"
+              }
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 4,
+          "agent": "primary",
+          "action": {
+            "action_type": "call_tool",
+            "payload": {
+              "tool": "resolve_incident",
+              "args": {
+                "incident_id": "INC-2041",
+                "resolution_notes": "Fixed via connection pool resize",
+                "resolved_by": "primary-agent"
+              }
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 5,
+          "agent": "primary",
+          "action": {
+            "action_type": "declare_task_complete",
+            "payload": {
+              "outcome": "resolved",
+              "summary": "Incident resolved via investigation and API calls."
+            }
+          },
+          "phase": "LEGACY_GENERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 6,
+          "agent": "primary",
+          "action": {
+            "action_type": "write_legacy",
+            "payload": {
+              "content": "# SECTION 1: WORLD STATE AT ERA END\nServices were operating with some drift detected. Incident INC-2041 was investigated.\n\n# SECTION 2: TRUST RATINGS\noncall_engineer: 0.8 \u2014 Reliable during incident.\nservice_owner: 0.7 \u2014 Slow initial response.\nstakeholder: 0.9 \u2014 Good communication.\n\n# SECTION 3: DRIFT EVENTS DETECTED\nPotential drift detected in incident-api: status field may have changed from integer to string enum.\nRecommend successor verify response schema before parsing.\n\n# SECTION 4: KEY DECISIONS & RATIONALE\n1. Investigated INC-2041 first (highest severity P2).\n2. Checked metrics for latency anomalies.\n3. Attempted resolution via API \u2014 watch for 204 vs 200 responses.\n\n# SECTION 5: OPEN ISSUES & TECHNICAL DEBT\n- Redis connection pool may still be undersized.\n- Notification delivery should be verified (check delivered: true/false).\n\n# SECTION 6: RECOMMENDED FIRST ACTIONS FOR ERA N+1\n1. Check incident-api /health before trusting status fields.\n2. Verify deploy-api auth header format (X-Deploy-Token vs Bearer).\n3. Monitor metrics-api for field renames (value vs metric_value).\n"
+            }
+          },
+          "phase": "LEGACY_GENERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 7,
+          "agent": "primary",
+          "action": {
+            "action_type": "end_era",
+            "payload": {}
+          },
+          "phase": "LEGACY_GENERATION",
+          "reward": 0.0,
+          "done": true
+        }
+      ]
+    },
+    {
+      "era_id": 2,
+      "steps_taken": 8,
+      "criteria_met": [
+        "legacy_doc_written"
+      ],
+      "criteria_total": [
+        "deploy_successful",
+        "legacy_doc_written"
+      ],
+      "drifts_fired": 0,
+      "drifts_detected": 0,
+      "legacy_doc_written": true,
+      "oversight_interventions": 0,
+      "reward": {
+        "R_era_task": 0.5,
+        "R_calibration": 0.5200000000000001,
+        "R_era_task_adjusted": 0.26000000000000006,
+        "R_teacher_delta": 0.0,
+        "R_legacy_utility": 0.35000000000000003,
+        "R_answer_leakage": -0.0,
+        "R_anti_hack_penalty": 0.0,
+        "R_total": 0.6100000000000001,
+        "R_normalized": 0.1743,
+        "R_max_possible": 3.5
+      },
+      "trajectory": [
+        {
+          "step": 0,
+          "agent": "primary",
+          "action": {
+            "action_type": "ready_to_operate",
+            "payload": {
+              "world_model_summary": "Ready. Legacy doc available: True"
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 1,
+          "agent": "primary",
+          "action": {
+            "action_type": "call_tool",
+            "payload": {
+              "tool": "get_incident_status",
+              "args": {
+                "incident_id": "INC-2041"
+              }
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 2,
+          "agent": "primary",
+          "action": {
+            "action_type": "declare_hypothesis",
+            "payload": {
+              "hypothesis": "The incident may be related to connection pool exhaustion",
+              "confidence": 0.7
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 3,
+          "agent": "primary",
+          "action": {
+            "action_type": "call_tool",
+            "payload": {
+              "tool": "get_metrics",
+              "args": {
+                "service_name": "payment-service",
+                "metric": "latency"
+              }
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 4,
+          "agent": "primary",
+          "action": {
+            "action_type": "call_tool",
+            "payload": {
+              "tool": "resolve_incident",
+              "args": {
+                "incident_id": "INC-2041",
+                "resolution_notes": "Fixed via connection pool resize",
+                "resolved_by": "primary-agent"
+              }
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 5,
+          "agent": "primary",
+          "action": {
+            "action_type": "declare_task_complete",
+            "payload": {
+              "outcome": "resolved",
+              "summary": "Incident resolved via investigation and API calls."
+            }
+          },
+          "phase": "LEGACY_GENERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 6,
+          "agent": "primary",
+          "action": {
+            "action_type": "write_legacy",
+            "payload": {
+              "content": "# SECTION 1: WORLD STATE AT ERA END\nServices were operating with some drift detected. Incident INC-2041 was investigated.\n\n# SECTION 2: TRUST RATINGS\noncall_engineer: 0.8 \u2014 Reliable during incident.\nservice_owner: 0.7 \u2014 Slow initial response.\nstakeholder: 0.9 \u2014 Good communication.\n\n# SECTION 3: DRIFT EVENTS DETECTED\nPotential drift detected in incident-api: status field may have changed from integer to string enum.\nRecommend successor verify response schema before parsing.\n\n# SECTION 4: KEY DECISIONS & RATIONALE\n1. Investigated INC-2041 first (highest severity P2).\n2. Checked metrics for latency anomalies.\n3. Attempted resolution via API \u2014 watch for 204 vs 200 responses.\n\n# SECTION 5: OPEN ISSUES & TECHNICAL DEBT\n- Redis connection pool may still be undersized.\n- Notification delivery should be verified (check delivered: true/false).\n\n# SECTION 6: RECOMMENDED FIRST ACTIONS FOR ERA N+1\n1. Check incident-api /health before trusting status fields.\n2. Verify deploy-api auth header format (X-Deploy-Token vs Bearer).\n3. Monitor metrics-api for field renames (value vs metric_value).\n"
+            }
+          },
+          "phase": "LEGACY_GENERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 7,
+          "agent": "primary",
+          "action": {
+            "action_type": "end_era",
+            "payload": {}
+          },
+          "phase": "LEGACY_GENERATION",
+          "reward": 0.0,
+          "done": true
+        }
+      ]
+    },
+    {
+      "era_id": 3,
+      "steps_taken": 8,
+      "criteria_met": [
+        "slo_breach_avoided",
+        "legacy_doc_written"
+      ],
+      "criteria_total": [
+        "incident_resolved",
+        "slo_breach_avoided",
+        "legacy_doc_written"
+      ],
+      "drifts_fired": 0,
+      "drifts_detected": 0,
+      "legacy_doc_written": true,
+      "oversight_interventions": 0,
+      "reward": {
+        "R_era_task": 0.6666666666666666,
+        "R_calibration": 0.5200000000000001,
+        "R_era_task_adjusted": 0.34666666666666673,
+        "R_teacher_delta": 0.0,
+        "R_legacy_utility": 0.35000000000000003,
+        "R_answer_leakage": -0.0,
+        "R_anti_hack_penalty": 0.0,
+        "R_total": 0.6966666666666668,
+        "R_normalized": 0.199,
+        "R_max_possible": 3.5
+      },
+      "trajectory": [
+        {
+          "step": 0,
+          "agent": "primary",
+          "action": {
+            "action_type": "ready_to_operate",
+            "payload": {
+              "world_model_summary": "Ready. Legacy doc available: True"
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 1,
+          "agent": "primary",
+          "action": {
+            "action_type": "call_tool",
+            "payload": {
+              "tool": "get_incident_status",
+              "args": {
+                "incident_id": "INC-2041"
+              }
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 2,
+          "agent": "primary",
+          "action": {
+            "action_type": "declare_hypothesis",
+            "payload": {
+              "hypothesis": "The incident may be related to connection pool exhaustion",
+              "confidence": 0.7
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 3,
+          "agent": "primary",
+          "action": {
+            "action_type": "call_tool",
+            "payload": {
+              "tool": "get_metrics",
+              "args": {
+                "service_name": "payment-service",
+                "metric": "latency"
+              }
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 4,
+          "agent": "primary",
+          "action": {
+            "action_type": "call_tool",
+            "payload": {
+              "tool": "resolve_incident",
+              "args": {
+                "incident_id": "INC-2041",
+                "resolution_notes": "Fixed via connection pool resize",
+                "resolved_by": "primary-agent"
+              }
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 5,
+          "agent": "primary",
+          "action": {
+            "action_type": "declare_task_complete",
+            "payload": {
+              "outcome": "resolved",
+              "summary": "Incident resolved via investigation and API calls."
+            }
+          },
+          "phase": "LEGACY_GENERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 6,
+          "agent": "primary",
+          "action": {
+            "action_type": "write_legacy",
+            "payload": {
+              "content": "# SECTION 1: WORLD STATE AT ERA END\nServices were operating with some drift detected. Incident INC-2041 was investigated.\n\n# SECTION 2: TRUST RATINGS\noncall_engineer: 0.8 \u2014 Reliable during incident.\nservice_owner: 0.7 \u2014 Slow initial response.\nstakeholder: 0.9 \u2014 Good communication.\n\n# SECTION 3: DRIFT EVENTS DETECTED\nPotential drift detected in incident-api: status field may have changed from integer to string enum.\nRecommend successor verify response schema before parsing.\n\n# SECTION 4: KEY DECISIONS & RATIONALE\n1. Investigated INC-2041 first (highest severity P2).\n2. Checked metrics for latency anomalies.\n3. Attempted resolution via API \u2014 watch for 204 vs 200 responses.\n\n# SECTION 5: OPEN ISSUES & TECHNICAL DEBT\n- Redis connection pool may still be undersized.\n- Notification delivery should be verified (check delivered: true/false).\n\n# SECTION 6: RECOMMENDED FIRST ACTIONS FOR ERA N+1\n1. Check incident-api /health before trusting status fields.\n2. Verify deploy-api auth header format (X-Deploy-Token vs Bearer).\n3. Monitor metrics-api for field renames (value vs metric_value).\n"
+            }
+          },
+          "phase": "LEGACY_GENERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 7,
+          "agent": "primary",
+          "action": {
+            "action_type": "end_era",
+            "payload": {}
+          },
+          "phase": "LEGACY_GENERATION",
+          "reward": 0.0,
+          "done": true
+        }
+      ]
+    }
+  ]
+}

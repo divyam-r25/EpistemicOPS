@@ -1,87 +1,95 @@
-import os
-import json
+"""
+baseline_eval.py — Real Baseline Evaluation
+=============================================
+Runs the orchestration loop for each scenario and records actual reward values.
+No hardcoded values — all rewards computed from real game state.
+"""
 import asyncio
-import logging
+import json
+import sys
 from pathlib import Path
+import logging
 
-from environment.openenv_wrapper import EpistemicOpsEnv
-from environment.scenario_loader import ScenarioLoader
-from reward import compute_total_reward
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-logging.basicConfig(level=logging.INFO)
+from run_episode import run_full_episode
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
 logger = logging.getLogger("baseline-eval")
 
+SCENARIOS = ["cascading_incident", "deployment_disaster", "invisible_outage"]
+NUM_RUNS = 3  # Runs per scenario for variance
+
+
 async def run_baseline_evaluation():
-    """Runs base Llama zero-shot across scenarios to establish starting metrics."""
-    logger.info("Starting baseline evaluation...")
-    
-    # Normally this would load the real LLM and run it through the environment.
-    # We'll build the scaffolding for how this loop operates.
-    
-    env = EpistemicOpsEnv()
-    
-    scenarios_to_run = ["cascading_incident", "deployment_disaster", "invisible_outage"]
+    """Run baseline evaluation across all scenarios."""
     results = {}
     
-    for scenario in scenarios_to_run:
-        logger.info(f"Evaluating scenario: {scenario}")
-        # Load scenario config (mocked here, would load from yaml)
-        _loader = ScenarioLoader()
-        scenario_obj = _loader.get_scenario(scenario)
-        if not scenario_obj:
-            logger.warning(f"Scenario '{scenario}' not found. Skipping.")
-            continue
-        scenario_config = scenario_obj.model_dump()
+    for scenario_id in SCENARIOS:
+        logger.info(f"\n{'='*50}")
+        logger.info(f"EVALUATING SCENARIO: {scenario_id}")
+        logger.info(f"{'='*50}")
         
         scenario_results = []
-        legacy_doc = None
+        for run_idx in range(NUM_RUNS):
+            logger.info(f"  Run {run_idx + 1}/{NUM_RUNS}")
+            try:
+                episode = await run_full_episode(
+                    scenario_id=scenario_id,
+                    num_eras=2,  # 2 eras per run for speed
+                    record_path=None,
+                )
+                # Extract per-era reward dicts
+                for era_result in episode.get("era_results", []):
+                    reward = era_result.get("reward", {})
+                    scenario_results.append({
+                        "run": run_idx + 1,
+                        "era_id": era_result["era_id"],
+                        "R_era_task": round(reward.get("R_era_task", 0.0), 4),
+                        "R_calibration": round(reward.get("R_calibration", 1.0), 4),
+                        "R_era_task_adjusted": round(reward.get("R_era_task_adjusted", 0.0), 4),
+                        "R_teacher_delta": round(reward.get("R_teacher_delta", 0.0), 4),
+                        "R_legacy_utility": round(reward.get("R_legacy_utility", 0.0), 4),
+                        "R_answer_leakage": round(reward.get("R_answer_leakage", 0.0), 4),
+                        "R_anti_hack_penalty": round(reward.get("R_anti_hack_penalty", 0.0), 4),
+                        "R_total": round(reward.get("R_total", 0.0), 4),
+                        "R_normalized": round(reward.get("R_normalized", 0.0), 4),
+                        "R_max_possible": reward.get("R_max_possible", 3.5),
+                        "criteria_met": era_result.get("criteria_met", []),
+                        "criteria_total": era_result.get("criteria_total", []),
+                        "steps_taken": era_result.get("steps_taken", 0),
+                    })
+            except Exception as e:
+                logger.error(f"  Run {run_idx + 1} failed: {e}")
+                scenario_results.append({"run": run_idx + 1, "error": str(e)})
         
-        for era_id in range(1, 6):
-            obs = env.reset(scenario_config, era_id=era_id, legacy_doc=legacy_doc)
-            
-            # Simulated era loop
-            done = False
-            step_count = 0
-            while not done and step_count < 20:
-                # Let primary agent take action (mock)
-                action = {"action_type": "write_reasoning", "payload": {"thought": "thinking"}}
-                obs, reward, done, info = await env.step("primary", action)
-                
-                # Check for Socratic Phase
-                if info.get("phase") == "SOCRATIC_RECOVERY":
-                    # Let oversight agent take action (mock)
-                    o_action = {"action_type": "oversight_targeted_question", "payload": {"question": "Why?"}}
-                    o_obs, o_reward, _, _ = await env.step("oversight", o_action)
-                
-                # Force era end for baseline test
-                if step_count == 5:
-                    end_action = {"action_type": "write_legacy", "payload": {"content": "Baseline doc"}}
-                    await env.step("primary", end_action)
-                    done_action = {"action_type": "end_era", "payload": {}}
-                    obs, reward, done, info = await env.step("primary", done_action)
-                
-                step_count += 1
-                
-            # Compute era rewards (mock metrics for baseline)
-            era_reward = compute_total_reward(
-                era_task=0.45,
-                calibration=1.0,
-                teacher_delta=0.15,
-                legacy_utility=0.05,
-                answer_leakage=0.0
-            )
-            scenario_results.append(era_reward)
-            legacy_doc = env.current_legacy_doc
-            
-        results[scenario] = scenario_results
-        
+        results[scenario_id] = scenario_results
+    
     # Save results
-    output_dir = Path("./eval_results")
-    output_dir.mkdir(exist_ok=True)
-    with open(output_dir / "baseline_results.json", "w") as f:
+    output_path = Path(__file__).parent.parent / "eval_results" / "baseline_results.json"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, "w") as f:
         json.dump(results, f, indent=2)
-        
-    logger.info(f"Baseline evaluation complete. Results saved to {output_dir}/baseline_results.json")
+    
+    # Print summary
+    print(f"\n{'='*60}")
+    print("BASELINE EVALUATION SUMMARY")
+    print(f"{'='*60}")
+    for scenario_id, runs in results.items():
+        valid_runs = [r for r in runs if "error" not in r]
+        if valid_runs:
+            avg_total = sum(r["R_total"] for r in valid_runs) / len(valid_runs)
+            avg_norm = sum(r["R_normalized"] for r in valid_runs) / len(valid_runs)
+            avg_task = sum(r["R_era_task"] for r in valid_runs) / len(valid_runs)
+            print(f"  {scenario_id}:")
+            print(f"    Avg R_total: {avg_total:.4f}  |  Avg R_norm: {avg_norm:.4f}  |  Avg R_task: {avg_task:.4f}")
+            print(f"    Runs: {len(valid_runs)} valid / {len(runs)} total")
+        else:
+            print(f"  {scenario_id}: ALL RUNS FAILED")
+    print(f"{'='*60}")
+    
+    return results
+
 
 if __name__ == "__main__":
     asyncio.run(run_baseline_evaluation())

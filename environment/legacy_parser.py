@@ -15,13 +15,15 @@ class LegacyParser:
     
     def __init__(self, max_tokens: int = 2048):
         self.max_tokens = max_tokens
-        # Zero-dependency token estimator: ~4 characters per token
-        # This is a well-established approximation used in production systems.
-        # No download, no network, no external files required.
-        self._chars_per_token = 4
+        # Zero-dependency token estimator: ~3 characters per token
+        # Conservative estimate (overestimates token count) to guarantee
+        # we never exceed the 2048-token hard limit from the spec.
+        # Real tokenizers average ~3.5-4 chars/token for English, so
+        # using 3 provides a safe margin.
+        self._chars_per_token = 3
 
     def _count_tokens(self, text: str) -> int:
-        """Estimate token count. ~4 chars per token for English text."""
+        """Estimate token count. ~3 chars per token (conservative)."""
         return max(1, len(text) // self._chars_per_token)
 
     def _truncate_to_tokens(self, text: str, max_tokens: int) -> str:

@@ -1,0 +1,10 @@
+# EpistemicOps — Training Dependencies (GPU required)
+# Install core deps first: pip install -r requirements.txt
+-r requirements.txt
+
+torch>=2.1.0
+transformers>=4.36.0
+trl>=0.7.0
+unsloth>=2024.1
+datasets>=2.16.0
+wandb
