@@ -95,6 +95,7 @@ OUTPUT FORMAT (JSON only):
             "overall": 0.5,
             "leakage_severity": 0.5,
             "brief_rationale": "API call failed or timed out. Fallback scores applied."
+            
         }
 
     async def evaluate_intervention(self, drift_config: dict, primary_trace: list, oversight_response: str) -> dict:

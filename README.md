@@ -1,10 +1,21 @@
 ---
+title: EpistemicOps
+emoji: 🧠
+colorFrom: indigo
+colorTo: purple
+sdk: gradio
+sdk_version: "5.9.1"
+app_file: app.py
+pinned: false
+license: mit
+short_description: RL Training Environment for Temporal Uncertainty & Scalable Oversight
 ---
+
 # EpistemicOps 🧠
 
 **An RL Training Environment for Temporal Uncertainty, Scalable Oversight, and Generational Knowledge Transfer.**
 
-[![HuggingFace Spaces Demo](https://img.shields.io/badge/%F0%9F%A4%97%20Spaces-Live%20Demo-blue)](#) *(Link will be active once deployed)*
+[![HuggingFace Spaces Demo](https://img.shields.io/badge/%F0%9F%A4%97%20Spaces-Live%20Demo-blue)](https://huggingface.co/spaces/Divyam-r25/EpistemicOps)
 
 ## What is this?
 EpistemicOps is an OpenEnv-compliant RL environment simulating an enterprise SRE workflow. It trains LLMs on three specific failure modes of production AI:
@@ -77,7 +88,7 @@ cp .env.example .env
 python training/baseline_eval.py
 
 # 4. Launch the demo UI
-python demo/app.py
+python app.py
 ```
 
 ## GitHub Repo Polish Checklist
