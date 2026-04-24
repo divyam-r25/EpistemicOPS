@@ -1,3 +1,5 @@
+---
+---
 # EpistemicOps 🧠
 
 **An RL Training Environment for Temporal Uncertainty, Scalable Oversight, and Generational Knowledge Transfer.**
