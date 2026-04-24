@@ -8,7 +8,7 @@ sdk_version: "5.9.1"
 app_file: app.py
 pinned: false
 license: mit
-short_description: RL Training Environment for Temporal Uncertainty & Scalable Oversight
+short_description: RL Environment for Temporal Drift & Oversight
 ---
 
 # EpistemicOps 🧠
