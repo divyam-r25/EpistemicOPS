@@ -31,10 +31,10 @@ At the end of each era, the Primary Agent writes a Legacy Document — two thous
 *(Visual: Reward curve per era, highlighting drift detection and Socratic Delta)*
 
 **Speaker Notes (2:00 - 3:00):**
-Here is what our baseline agent does before any training: it completes about 60% of era tasks on average, but more importantly, when a drift is injected, it can detect and adapt to it roughly half the time through structured hypothesis-testing.
+Here is what the numbers say today on the same scenarios and settings (`eval/proof_of_learning.py`): the baseline side shows **0%** drift detection via structured hypotheses, while the trained side reaches about **78%** — that is the headline signal for silent API drift.
 
-The environment's reward model captures this precisely — our five-component reward function distinguishes between agents that brute-force solutions versus those that genuinely reason about uncertainty. The calibration multiplier rewards well-calibrated confidence estimates. The legacy utility score measures whether the next generation actually benefits from the document.
+The composite normalized reward moves from about **0.30** to **0.34** in the same runbook — smaller in absolute terms because the reward stacks multiple objectives, but the drift-detection delta is unambiguous.
 
-When the Oversight Agent intervenes with Socratic questions, the Primary Agent's recovery score improves by 0.5 teacher_delta — and the teacher does it without ever giving the answer, validated by our LLM Judge.
+The environment's five-component reward function distinguishes brute-force completion from calibrated reasoning, useful legacy transfer, and non-leaking teaching. When Socratic oversight fires, we score whether the Primary actually improves without the teacher leaking the answer — validated by an LLM judge.
 
-The GRPO training pipeline is ready: Llama 3.1 8B via Unsloth, with our custom reward function as the GRPO signal. EpistemicOps proves that memory compression, temporal trust, and pedagogical transfer can be trained together — because they are the same cognitive skill. Thank you.
+The GRPO training pipeline is Llama 3.1 8B via Unsloth with this reward as the GRPO signal. EpistemicOps shows that memory compression, temporal trust, and pedagogical transfer can be trained together — because they are the same cognitive skill. Thank you.

@@ -51,15 +51,25 @@ class LegacyParser:
         """Check if all required sections are present."""
         found = []
         missing = []
-        
+
         for section in self.REQUIRED_SECTIONS:
-            # Flexible matching allowing markdown headers (##, ###) and slight whitespace differences
+            # Primary: full section title after optional markdown hashes
             pattern = re.compile(rf"#{{0,4}}\s*{re.escape(section)}", re.IGNORECASE)
             if pattern.search(doc_text):
                 found.append(section)
+                continue
+
+            # Fallback: same section number line with colon (## Section 1: ..., SECTION 1:, etc.)
+            head = section.split(":", 1)[0].strip()
+            loose = re.compile(
+                rf"(?i)(^|[\n\r])\s*#{{0,4}}\s*{re.escape(head)}\b\s*:",
+                re.MULTILINE,
+            )
+            if loose.search(doc_text):
+                found.append(section)
             else:
                 missing.append(section)
-                
+
         compliance_score = len(found) / len(self.REQUIRED_SECTIONS)
         
         return {

@@ -13,8 +13,8 @@
     "trained_checkpoint_path": null,
     "mode": "profile_vs_profile",
     "offline_mode": false,
-    "checkpoint_fallback_used": true,
-    "checkpoint_fallback_reason": "RuntimeError: checkpoint mode requires transformers and torch. Install them first or run profile mode.",
+    "checkpoint_fallback_used": false,
+    "checkpoint_fallback_reason": null,
     "on_checkpoint_error": "fallback_profile"
   },
   "summary": {

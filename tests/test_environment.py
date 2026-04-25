@@ -37,3 +37,24 @@ def test_legacy_parser_compliance():
     """
     _, _, stats = parser.parse_and_truncate(doc)
     assert stats["compliance_score"] == 1.0
+
+
+def test_legacy_parser_compliance_loose_headers():
+    """Fallback: section number lines that do not repeat the full spec title still count."""
+    parser = LegacyParser()
+    doc = """
+    ## Section 1: abbreviated world summary
+    data
+    ## Section 2: trust notes
+    data
+    ## Section 3: drift notes
+    data
+    ## Section 4: decisions
+    data
+    ## Section 5: debt
+    data
+    ## Section 6: next era actions
+    data
+    """
+    _, _, stats = parser.parse_and_truncate(doc)
+    assert stats["compliance_score"] == 1.0

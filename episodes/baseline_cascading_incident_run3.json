@@ -2,7 +2,7 @@
   "scenario_id": "cascading_incident",
   "scenario_name": "The Cascading Incident",
   "num_eras": 3,
-  "timestamp": "2026-04-25T15:40:17.279728+00:00",
+  "timestamp": "2026-04-25T20:13:08.584335+00:00",
   "avg_normalized_reward": 0.3064,
   "era_results": [
     {

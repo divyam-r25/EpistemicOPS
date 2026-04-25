@@ -8,7 +8,7 @@ description: >
 
 server:
   entrypoint: "environment.server:app"
-  port: 7860
+  port: 8000
 
 tasks:
   - id: "cascading_incident"

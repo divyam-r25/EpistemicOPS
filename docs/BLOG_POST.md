@@ -36,13 +36,13 @@ R_total = (R_era_task x R_calibration) + R_teacher_delta + R_legacy_utility + R_
 
 ## Results
 
-Our baseline (zero-shot mock agent, no fine-tuning) shows:
-- **Drift Detection:** Mock agents detect ~50% of injected drifts via structured hypothesis-testing
-- **Legacy Utility:** Legacy Documents provide measurable performance lift to successor agents (+0.35 reward)
-- **Oversight Impact:** Socratic interventions improve task recovery by 0.5 teacher_delta when triggered
-- **Average Normalized Reward:** ~0.35 across scenarios (out of max 1.0)
+Episode-level evaluation (`eval/proof_of_learning.py`, same scenarios and rollout settings for both sides) currently reports:
+- **Drift detection (hypothesis signal):** baseline **0%** vs trained **77.8%** — the trained policy learns to declare hypotheses when APIs fail unexpectedly.
+- **Average normalized reward:** baseline **0.296** vs trained **0.345** (composite of task, calibration, teacher delta, legacy utility, leakage, anti-hack).
+- **Criteria completion:** baseline **68.5%** vs trained **72.2%**.
+- **Legacy doc rate:** **100%** for both policies in this eval window (every era ends with a legacy write); the reward model still differentiates **legacy utility** from mere presence.
 
-The GRPO training pipeline (Llama 3.1 8B via Unsloth, 4-bit quantized) trains against this reward signal to improve drift detection and legacy document quality.
+The GRPO training pipeline (Llama 3.1 8B via Unsloth, 4-bit quantized) trains against this reward signal; re-run the proof script after each training checkpoint to refresh `eval_results/proof_of_learning.json`.
 
 ## Try it yourself
 

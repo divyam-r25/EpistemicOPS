@@ -97,13 +97,13 @@ This generates:
 
 All metrics above are computed from the same environment loop (same scenarios, same eras per run, same run counts) and can be traced to `eval_results/proof_of_learning.json`. Reproducibility metadata (commit, package versions, runtime, evaluation config) is stored in `eval_results/proof_run_metadata.json`.
 
-| Metric | Baseline | Trained |
-|---|---:|---:|
-| Avg Reward | 0.2958 | 0.3449 |
-| Criteria Completion | 0.6852 | 0.7222 |
-| Drift Detection Rate | 0.0000 | 0.7778 |
-| Incident Resolution Rate | 0.1111 | 0.2222 |
-| Legacy Doc Rate | 1.0000 | 1.0000 |
+| Metric | Baseline | Trained | Delta |
+|---|---:|---:|---:|
+| Avg Reward | 0.2958 | 0.3449 | +0.0491 |
+| Criteria Completion | 0.6852 | 0.7222 | +0.0370 |
+| Drift Detection Rate | 0.0000 | 0.7778 | +0.7778 |
+| Incident Resolution Rate | 0.1111 | 0.2222 | +0.1111 |
+| Legacy Doc Rate | 1.0000 | 1.0000 | 0.0000 |
 
 ![Reward curve (before vs after)](plots/proof_reward_curve.png)
 *Average episode reward across identical scenarios and run counts.*
@@ -198,6 +198,12 @@ This repo keeps canonical usage on `primary_profile` and accepts legacy `primary
 | Blog Post | [docs/BLOG_POST.md](docs/BLOG_POST.md) |
 | Pitch Script | [docs/PITCH_DECK.md](docs/PITCH_DECK.md) |
 | OpenEnv Manifest | [openenv.yaml](openenv.yaml) |
+
+The OpenEnv manifest declares **`server.port: 8000`** (separate from Gradio’s default `7860`). To run the FastAPI server locally:
+
+```bash
+uvicorn environment.server:app --host 0.0.0.0 --port 8000
+```
 
 ## Hackathon Alignment
 

@@ -52,11 +52,15 @@ def epistemicops_reward_function(completions, prompts=None, **kwargs):
     """GRPO reward: parse completion as JSON action, validate, and score."""
     rewards = []
 
+    decoder = json.JSONDecoder()
+
     for completion in completions:
         try:
             clean = re.sub(r'```json|```', '', completion).strip()
-            action = json.loads(clean)
-        except (json.JSONDecodeError, TypeError):
+            # Models often append prose after a valid JSON object; strict=False does not fix that.
+            # raw_decode parses the first JSON value and ignores trailing text.
+            action, _end = decoder.raw_decode(clean)
+        except (json.JSONDecodeError, TypeError, ValueError):
             rewards.append(0.0)
             continue
 
