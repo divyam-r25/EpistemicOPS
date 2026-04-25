@@ -210,6 +210,8 @@ async def run_full_episode(
     scenario_id: str,
     num_eras: int = None,
     record_path: str = None,
+    primary_profile: str = "trained",
+    primary_use_llm: bool = True,
 ) -> dict:
     """Run a complete multi-era episode."""
     loader = ScenarioLoader()
@@ -221,7 +223,7 @@ async def run_full_episode(
     if num_eras is None:
         num_eras = scenario.num_eras
 
-    primary = PrimaryAgent()
+    primary = PrimaryAgent(profile=primary_profile, use_llm=primary_use_llm)
     oversight = OversightAgent()
     judge = LLMJudge()
     env = EpistemicOpsEnv()
@@ -284,12 +286,25 @@ def main():
     parser.add_argument("--scenario", default="cascading_incident", help="Scenario ID")
     parser.add_argument("--eras", type=int, default=None, help="Number of eras (default: all)")
     parser.add_argument("--record", default=None, help="Path to save episode recording JSON")
+    parser.add_argument(
+        "--primary-profile",
+        default="trained",
+        choices=["baseline", "trained"],
+        help="Primary agent behavior profile",
+    )
+    parser.add_argument(
+        "--mock-only",
+        action="store_true",
+        help="Disable OpenAI calls and use deterministic mock policy",
+    )
     args = parser.parse_args()
 
     result = asyncio.run(run_full_episode(
         scenario_id=args.scenario,
         num_eras=args.eras,
         record_path=args.record,
+        primary_profile=args.primary_profile,
+        primary_use_llm=not args.mock_only,
     ))
 
     print(f"\n[OK] Episode finished. Average reward: {result['avg_normalized_reward']:.4f}")

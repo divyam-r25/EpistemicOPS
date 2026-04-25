@@ -79,7 +79,8 @@ class LegacyParser:
         
         for drift in actual_drifts:
             service = drift.get("target_service", "").lower()
-            field = drift.get("drifted_behaviour", {}).get("field", "").lower()
+            behaviour = drift.get("drifted_behaviour") or {}
+            field = str(behaviour.get("field", "")).lower()
             
             # Simple heuristic: if the service name and the affected field are mentioned, count it
             if service in doc_lower and (field in doc_lower or drift.get("type", "").lower() in doc_lower):

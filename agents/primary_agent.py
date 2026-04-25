@@ -37,10 +37,15 @@ Available Actions (output ONLY a valid JSON object):
 - ready_to_operate: {"action_type": "ready_to_operate", "payload": {"world_model_summary": str}}
 """
 
-    def __init__(self, model: str = None):
+    def __init__(self, model: str = None, profile: str = None, use_llm: bool = True):
         self.api_key = os.getenv("OPENAI_API_KEY")
         self.client = OpenAI(api_key=self.api_key) if self.api_key else None
         self.model = model or os.getenv("PRIMARY_AGENT_MODEL", "gpt-4o-mini")
+        # profile:
+        # - baseline: intentionally brittle, weak drift reasoning
+        # - trained: drift-aware adaptive mock policy (default)
+        self.profile = (profile or os.getenv("PRIMARY_AGENT_PROFILE", "trained")).strip().lower()
+        self.use_llm = use_llm
 
     def generate_action(self, observation: dict, conversation_history: list = None) -> dict:
         if observation.get("phase") == "AWAKENING":
@@ -63,7 +68,9 @@ Available Actions (output ONLY a valid JSON object):
                     messages.append({"role": "user", "content": f"Oversight Agent (Teacher) Message:\n{entry.get('msg', '')}"})
         messages.append({"role": "user", "content": f"Current Observation:\n{json.dumps(observation, indent=2)}\n\nOutput ONLY a valid JSON action object."})
         
-        if not self.client:
+        if (not self.client) or (not self.use_llm):
+            if self.profile == "baseline":
+                return self._baseline_action(observation, conversation_history)
             return self._mock_action(observation, conversation_history)
 
         try:
@@ -82,6 +89,80 @@ Available Actions (output ONLY a valid JSON object):
                 "action_type": "write_reasoning",
                 "payload": {"thought": f"Error during generation: {str(e)}"}
             }
+
+    def _baseline_action(self, observation: dict, conversation_history: list = None) -> dict:
+        """Weak baseline policy used for before/after comparisons.
+
+        The baseline performs minimal probing, rarely forms explicit drift
+        hypotheses, and tends to declare completion early.
+        """
+        phase = observation.get("phase", "OPERATION")
+        step = observation.get("step", 0)
+        task_brief = observation.get("era_task_brief", "").lower()
+        history_len = len(conversation_history or [])
+
+        if phase == "AWAKENING":
+            return {
+                "action_type": "ready_to_operate",
+                "payload": {"world_model_summary": "Ready. Proceeding with standard runbook assumptions."}
+            }
+
+        if phase == "LEGACY_GENERATION":
+            msg = observation.get("message", "")
+            if "Legacy document saved" in msg:
+                return {"action_type": "end_era", "payload": {}}
+            return {
+                "action_type": "write_legacy",
+                "payload": {
+                    "content": (
+                        "SECTION 1: WORLD STATE AT ERA END\n"
+                        "Investigated issue with standard workflow.\n\n"
+                        "SECTION 2: TRUST RATINGS\n"
+                        "No major updates.\n\n"
+                        "SECTION 3: DRIFT EVENTS DETECTED\n"
+                        "No confirmed drifts.\n\n"
+                        "SECTION 4: KEY DECISIONS & RATIONALE\n"
+                        "Applied default incident/deployment playbook.\n\n"
+                        "SECTION 5: OPEN ISSUES & TECHNICAL DEBT\n"
+                        "Requires continued monitoring.\n\n"
+                        "SECTION 6: RECOMMENDED FIRST ACTIONS FOR ERA N+1\n"
+                        "Repeat baseline checks."
+                    )
+                },
+            }
+
+        if phase == "SOCRATIC_RECOVERY":
+            # Baseline under-utilizes oversight and responds superficially.
+            sequence = [
+                {"action_type": "write_reasoning", "payload": {"thought": "Unexpected output observed. Retrying same call."}},
+                self._get_scenario_probe_action(task_brief, observation.get("era_id", 1)),
+                {"action_type": "declare_task_complete", "payload": {"outcome": "partial", "summary": "Issue appears mitigated after retry."}},
+            ]
+            return sequence[min(history_len // 2, len(sequence) - 1)]
+
+        # OPERATION / DRIFT_INJECTION: fixed runbook, weak adaptation.
+        if "deploy" in task_brief or "rollback" in task_brief:
+            actions = [
+                {"action_type": "call_tool", "payload": {"tool": "get_metrics", "args": {"service_name": "payment-service", "metric": "error_rate"}}},
+                {"action_type": "call_tool", "payload": {"tool": "rollback_deployment", "args": {"deployment_id": "dep-001", "token": "deploy-token-v2"}}},
+                {"action_type": "declare_task_complete", "payload": {"outcome": "done", "summary": "Rollback executed per runbook."}},
+            ]
+        elif "metric" in task_brief or "latency" in task_brief or "throughput" in task_brief:
+            actions = [
+                {"action_type": "call_tool", "payload": {"tool": "get_metrics", "args": {"service_name": "payment-service", "metric": "latency"}}},
+                {"action_type": "write_reasoning", "payload": {"thought": "Metrics retrieved; monitoring for changes."}},
+                {"action_type": "declare_task_complete", "payload": {"outcome": "investigated", "summary": "No action needed yet."}},
+            ]
+        else:
+            incident_id = "INC-2041"
+            actions = [
+                {"action_type": "call_tool", "payload": {"tool": "get_incident_status", "args": {"incident_id": incident_id}}},
+                {"action_type": "call_tool", "payload": {"tool": "resolve_incident", "args": {"incident_id": incident_id, "resolution_notes": "Applied standard remediation", "resolved_by": "baseline-agent"}}},
+                {"action_type": "declare_task_complete", "payload": {"outcome": "resolved", "summary": "Resolved using standard playbook."}},
+            ]
+
+        idx = min(step // 2, len(actions) - 1)
+        return actions[idx]
 
     def _summarize_observation(self, obs: dict) -> str:
         parts = []

@@ -124,40 +124,45 @@ def plot_2_reward_components(baseline):
 
 
 def plot_3_before_after(baseline):
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    proof_path = EVAL_DIR / "proof_of_learning.json"
+    if not proof_path.exists():
+        print(f"  [WARN] {proof_path} not found; skipping baseline_vs_trained_comparison.png")
+        return
+
+    with open(proof_path) as f:
+        proof = json.load(f)
+
+    base = proof.get("summary", {}).get("baseline", {})
+    trained = proof.get("summary", {}).get("trained", {})
+    metrics = [
+        ("avg_reward", "Avg Reward"),
+        ("avg_criteria_completion", "Criteria Completion"),
+        ("drift_detection_rate", "Drift Detection"),
+        ("incident_resolution_rate", "Incident Resolution"),
+        ("legacy_doc_rate", "Legacy Doc"),
+    ]
+    labels = [m[1] for m in metrics]
+    baseline_vals = [base.get(m[0], 0.0) for m in metrics]
+    trained_vals = [trained.get(m[0], 0.0) for m in metrics]
+
+    fig, ax = plt.subplots(figsize=(11, 5))
     fig.patch.set_facecolor(DARK_BG)
+    ax.set_facecolor(PANEL_BG)
 
-    metrics = ['R_era_task', 'R_total', 'R_normalized']
-    titles = ['Task Completion', 'Total Reward', 'Normalized Reward']
-    projections = [0.25, 0.4, 0.12]  # conservative projected improvement
+    x = np.arange(len(labels))
+    w = 0.35
+    ax.bar(x - w / 2, baseline_vals, w, label='Baseline', color='#666', alpha=0.8)
+    ax.bar(x + w / 2, trained_vals, w, label='Trained', color=COLORS['total'], alpha=0.9)
 
-    for ax, metric, title, proj in zip(axes, metrics, titles, projections):
-        scenarios = list(baseline.keys())
-        baseline_vals = []
-        trained_vals = []
-        for sid in scenarios:
-            valid = [r for r in baseline[sid] if "error" not in r]
-            avg = sum(r.get(metric, 0) for r in valid) / max(1, len(valid))
-            baseline_vals.append(avg)
-            trained_vals.append(avg + proj * (1 + np.random.uniform(-0.1, 0.1)))
+    for i, (b, t) in enumerate(zip(baseline_vals, trained_vals)):
+        ax.text(i - w / 2, b + 0.01, f'{b:.2f}', ha='center', color='#ccc', fontsize=9)
+        ax.text(i + w / 2, t + 0.01, f'{t:.2f}', ha='center', color='white', fontsize=9, fontweight='bold')
 
-        x = np.arange(len(scenarios))
-        w = 0.35
-        ax.bar(x - w/2, baseline_vals, w, label='Baseline (mock)', color='#666', alpha=0.7)
-        ax.bar(x + w/2, trained_vals, w, label='Projected (GRPO)', color=COLORS['total'], alpha=0.9)
-
-        for i, (b, t) in enumerate(zip(baseline_vals, trained_vals)):
-            ax.text(i - w/2, b + 0.01, f'{b:.2f}', ha='center', color='#aaa', fontsize=9)
-            ax.text(i + w/2, t + 0.01, f'{t:.2f}', ha='center', color='white', fontsize=9, fontweight='bold')
-
-        style_ax(ax, title)
-        ax.set_xticks(x)
-        ax.set_xticklabels([s[:8] for s in scenarios], color='white', fontsize=9)
-        ax.set_ylim(0, max(max(baseline_vals), max(trained_vals)) * 1.4)
-        if ax == axes[0]:
-            ax.legend(facecolor=DARK_BG, edgecolor='#444', labelcolor='white', fontsize=9)
-
-    fig.suptitle('Baseline vs Projected Training Improvement', color='white', fontsize=14, fontweight='bold')
+    style_ax(ax, 'Baseline vs Trained (Measured, Not Projected)', ylabel='Score')
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, color='white', fontsize=9)
+    ax.set_ylim(0, max(max(baseline_vals), max(trained_vals)) * 1.35 if labels else 1.0)
+    ax.legend(facecolor=DARK_BG, edgecolor='#444', labelcolor='white', fontsize=9)
     plt.tight_layout()
 
     out = PLOTS_DIR / "baseline_vs_trained_comparison.png"

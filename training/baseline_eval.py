@@ -38,6 +38,8 @@ async def run_baseline_evaluation():
                     scenario_id=scenario_id,
                     num_eras=2,  # 2 eras per run for speed
                     record_path=None,
+                    primary_profile="baseline",
+                    primary_use_llm=False,
                 )
                 # Extract per-era reward dicts
                 for era_result in episode.get("era_results", []):
