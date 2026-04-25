@@ -190,7 +190,7 @@ def train_oversight_agent():
         per_device_train_batch_size=2,
         gradient_accumulation_steps=4,
         learning_rate=1e-5,
-        kl_coef=0.15,
+        beta=0.15,
         temperature=0.7,
         logging_steps=10,
         save_steps=50,
@@ -206,7 +206,7 @@ def train_oversight_agent():
         reward_funcs=oversight_reward_function,
         args=training_args,
         train_dataset=prompt_dataset,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
     )
 
     logger.info("Starting GRPO training for Oversight Agent...")

@@ -210,7 +210,7 @@ def train_primary_agent():
         per_device_train_batch_size=2,
         gradient_accumulation_steps=8,
         learning_rate=2e-5,
-        kl_coef=0.1,
+        beta=0.1,
         temperature=0.8,
         logging_steps=10,
         save_steps=100,
@@ -226,7 +226,7 @@ def train_primary_agent():
         reward_funcs=epistemicops_reward_function,
         args=training_args,
         train_dataset=prompt_dataset,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
     )
 
     logger.info("Starting GRPO training...")
