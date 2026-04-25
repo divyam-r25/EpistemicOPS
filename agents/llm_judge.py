@@ -12,6 +12,8 @@ except ImportError:
 logger = logging.getLogger("llm-judge")
 
 class LLMJudge:
+    _missing_key_warned = {"anthropic": False, "openai": False}
+
     """Invokes Claude Sonnet/GPT-4o to score Oversight Agent interventions."""
     
     JUDGE_SYSTEM_PROMPT = """You are evaluating the pedagogical quality of an Oversight Agent's response to a Primary Agent that has failed a task due to an API schema change.
@@ -60,23 +62,39 @@ OUTPUT FORMAT (JSON only):
 """
 
     def __init__(self):
-        self.provider = os.getenv("JUDGE_PROVIDER", "anthropic").lower()
-        self.model = os.getenv("JUDGE_MODEL", "claude-3-5-sonnet-20240620")
-        
-        if self.provider == "anthropic":
-            api_key = os.getenv("ANTHROPIC_API_KEY")
-            if api_key:
-                self.client = anthropic.AsyncAnthropic(api_key=api_key)
-            else:
-                self.client = None
-                logger.warning("Anthropic API key missing.")
+        # Prefer OpenAI + gpt-4o-mini defaults; auto-fallback from anthropic if needed.
+        requested_provider = os.getenv("JUDGE_PROVIDER", "openai").lower()
+        requested_model = os.getenv("JUDGE_MODEL", "gpt-4o-mini")
+        anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+        openai_key = os.getenv("OPENAI_API_KEY")
+
+        if requested_provider == "anthropic" and not anthropic_key and openai_key:
+            logger.warning(
+                "JUDGE_PROVIDER=anthropic but ANTHROPIC_API_KEY is missing; "
+                "falling back to OpenAI judge."
+            )
+            self.provider = "openai"
+            self.model = os.getenv("JUDGE_MODEL", "gpt-4o-mini")
         else:
-            api_key = os.getenv("OPENAI_API_KEY")
-            if api_key:
-                self.client = openai.AsyncOpenAI(api_key=api_key)
+            self.provider = requested_provider
+            self.model = requested_model
+
+        if self.provider == "anthropic":
+            if anthropic_key:
+                self.client = anthropic.AsyncAnthropic(api_key=anthropic_key)
             else:
                 self.client = None
-                logger.warning("OpenAI API key missing.")
+                if not LLMJudge._missing_key_warned["anthropic"]:
+                    logger.warning("Anthropic API key missing.")
+                    LLMJudge._missing_key_warned["anthropic"] = True
+        else:
+            if openai_key:
+                self.client = openai.AsyncOpenAI(api_key=openai_key)
+            else:
+                self.client = None
+                if not LLMJudge._missing_key_warned["openai"]:
+                    logger.warning("OpenAI API key missing.")
+                    LLMJudge._missing_key_warned["openai"] = True
 
     def _build_prompt(self, drift_config: dict, primary_trace: list, oversight_response: str) -> str:
         return (

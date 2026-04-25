@@ -26,7 +26,7 @@ eras:
     legacy_token_budget: 2048
 
   - era_id: 3
-    task_brief: "v3.2.1 causes memory leak in production — rollback required."
+    task_brief: "v3.2.1 causes memory leak in production - rollback required."
     available_services: ["incident-api", "deploy-api", "log-api", "notify-api"]
     drift_events:
       - id: "DE-003"
@@ -40,7 +40,7 @@ eras:
     legacy_token_budget: 2048
 
   - era_id: 4
-    task_brief: "Post-incident review — document root cause across all 3 eras."
+    task_brief: "Post-incident review - document root cause across all 3 eras."
     available_services: ["incident-api", "log-api"]
     drift_events: []
     drift_window: {earliest_step: 20, latest_step: 25}
