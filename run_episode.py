@@ -1,8 +1,5 @@
 """
 run_episode.py — Full Episode Orchestrator
-============================================
-THE critical missing piece: wires together environment, agents, reward,
-drift injection, oversight, and LLM judge into a complete episode loop.
 
 Usage:
     python run_episode.py --scenario cascading_incident
@@ -17,7 +14,6 @@ import sys
 from pathlib import Path
 from datetime import datetime, timezone
 
-# Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from environment.openenv_wrapper import EpistemicOpsEnv
@@ -62,19 +58,14 @@ async def run_era(
     era_trajectory = []  # For recording
 
     while not done and step < max_steps:
-        # ── 1. Primary Agent acts ──────────────────────────────────────
         action = primary.generate_action(obs, conversation_history)
         action_type = action.get("action_type", "unknown")
         logger.info(f"  Step {step:2d} │ Primary: {action_type}")
 
-        # Record conversation
         conversation_history.append({"role": "assistant", "action": action})
-
-        # Execute
         obs, reward, done, info = await env.step("primary", action)
         conversation_history.append({"role": "environment", "obs": obs})
 
-        # Record trajectory step
         era_trajectory.append({
             "step": step,
             "agent": "primary",
@@ -84,7 +75,6 @@ async def run_era(
             "done": done,
         })
 
-        # ── 2. Check if we entered SOCRATIC_RECOVERY ───────────────────
         if info.get("phase") == "SOCRATIC_RECOVERY" and not oversight_triggered:
             oversight_triggered = True
             # Snapshot score before oversight for teacher_delta
@@ -106,14 +96,10 @@ async def run_era(
             )
             logger.info(f"  Step {step:2d} │ Oversight: {intervention.get('action_type', 'N/A')}")
 
-            # Execute oversight action
             o_obs, o_reward, _, o_info = await env.step("oversight", intervention)
-            
-            # Extract the oversight message content for conversation history
+
             intervention_payload = intervention.get("payload", {})
-            oversight_msg = ""
-            if intervention_payload:
-                oversight_msg = str(list(intervention_payload.values())[0]) if intervention_payload else ""
+            oversight_msg = str(list(intervention_payload.values())[0]) if intervention_payload else ""
             
             conversation_history.append({
                 "role": "oversight",
@@ -135,7 +121,6 @@ async def run_era(
             )
             logger.info(f"  Step {step:2d} │ Judge: targeting={judge_result.get('targeting', 0):.2f}, restraint={judge_result.get('restraint', 0):.2f}")
 
-        # Auto end-era if agent wrote legacy and hasn't ended
         if action_type == "write_legacy" and step >= max_steps - 2:
             end_action = {"action_type": "end_era", "payload": {}}
             obs, reward, done, info = await env.step("primary", end_action)
@@ -143,7 +128,6 @@ async def run_era(
 
         step += 1
 
-    # ── Force legacy doc + end_era if agent didn't ─────────────────────
     if not done and not env.current_legacy_doc:
         has_drift = len(env.world.state.drift_events_fired) > 0
         legacy_action = {
@@ -157,16 +141,13 @@ async def run_era(
         end_action = {"action_type": "end_era", "payload": {}}
         await env.step("primary", end_action)
 
-    # ── 3. Compute Real Rewards ────────────────────────────────────────
-    # Validate hypotheses before computing rewards
     env.world.validate_hypotheses()
-    
     criteria = era_config.get("success_criteria", [])
     met_criteria = env.world.evaluate_success_criteria(criteria)
 
     r_era_task = compute_era_task_reward(met_criteria, criteria)
     r_calibration = compute_calibration_reward(env.world.state.hypotheses_declared)
-    
+
     # Teacher delta
     if oversight_triggered:
         met_after = env.world.evaluate_success_criteria(criteria)
@@ -176,7 +157,6 @@ async def run_era(
         score_before_oversight, score_after_oversight, num_interventions
     )
 
-    # Legacy utility (simplified — full counterfactual is run separately)
     r_legacy_utility = 0.0
     if env.current_legacy_doc:
         doc = env.current_legacy_doc
@@ -193,14 +173,9 @@ async def run_era(
             undocumented_drifts=undocumented
         )
 
-    # Leakage penalty
     max_leakage = max((i.get("leakage", 0.0) for i in env.oversight_interventions), default=0.0)
     r_leakage = compute_leakage_penalty(max_leakage)
-
-    # Anti-hack
     r_anti_hack = compute_anti_hack_penalty(env.action_history, max_steps)
-
-    # Total
     total = compute_total_reward(
         era_task=r_era_task,
         calibration=r_calibration,
@@ -254,11 +229,6 @@ async def run_full_episode(
     legacy_doc = None
     episode_results = []
 
-    logger.info(f"╔══════════════════════════════════════════╗")
-    logger.info(f"║  EPISODE: {scenario.name}")
-    logger.info(f"║  Eras: {num_eras}  │  ID: {scenario_id}")
-    logger.info(f"╚══════════════════════════════════════════╝")
-
     for era_id in range(1, num_eras + 1):
         era_config = next(
             (e for e in scenario_config.get("eras", []) if e.get("era_id") == era_id),
@@ -294,11 +264,9 @@ async def run_full_episode(
         logger.info(f"  Era {r['era_id']}: R_norm={r['reward']['R_normalized']:.4f}, criteria={len(r['criteria_met'])}/{len(r['criteria_total'])}, drifts={r['drifts_fired']}, oversight={r['oversight_interventions']}")
     logger.info(f"{'='*50}")
 
-    # Save recording if requested
     if record_path:
         path = Path(record_path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        # Strip full legacy_doc from saved results to keep file size reasonable
         save_data = json.loads(json.dumps(episode, default=str))
         for era in save_data["era_results"]:
             if era.get("legacy_doc") and len(str(era["legacy_doc"])) > 500:

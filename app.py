@@ -1,9 +1,3 @@
-"""
-EpistemicOps — HuggingFace Space Dashboard
-============================================
-Self-contained Gradio dashboard for episode replay, baseline results,
-and live simulation. Works offline (no Docker/API keys needed).
-"""
 import gradio as gr
 import json
 import sys
@@ -18,22 +12,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-# ──────────────────────────────────────────────────────────────────────────────
-# HELPERS
-# ──────────────────────────────────────────────────────────────────────────────
 
 def load_episode(path: str) -> dict:
     with open(path) as f:
         return json.load(f)
 
 def find_default_episode() -> str:
-    candidates = [
-        Path(__file__).parent / "episodes" / "test_run.json",
-        Path(__file__).parent / "episodes" / "sample_episode.json",
-    ]
-    for c in candidates:
-        if c.exists():
-            return str(c)
+    for name in ["test_run.json", "sample_episode.json"]:
+        p = Path(__file__).parent / "episodes" / name
+        if p.exists():
+            return str(p)
     return ""
 
 def build_era_summary(era: dict) -> str:
@@ -44,17 +32,15 @@ def build_era_summary(era: dict) -> str:
     drifts = era.get("drifts_fired", 0)
     oversight = era.get("oversight_interventions", 0)
 
-    met_str = ", ".join(criteria_met) if criteria_met else "None"
-
     drift_badge = f"🔴 **{drifts} drift(s)**" if drifts > 0 else "🟢 No drifts"
     oversight_badge = f"🧑‍🏫 **{oversight} intervention(s)**" if oversight > 0 else "—"
 
-    md = f"""### Era {era.get('era_id', '?')}  {drift_badge}  |  {oversight_badge}
+    return f"""### Era {era.get('era_id', '?')}  {drift_badge}  |  {oversight_badge}
 | Metric | Value |
 |--------|-------|
 | Steps Taken | {steps} |
 | Criteria Met | {len(criteria_met)} / {len(criteria_total)} |
-| Met | {met_str} |
+| Met | {", ".join(criteria_met) or "None"} |
 | R_era_task | {reward.get('R_era_task', 0):.3f} |
 | R_calibration | {reward.get('R_calibration', 1.0):.2f}× |
 | R_teacher_delta | {reward.get('R_teacher_delta', 0):.3f} |
@@ -64,20 +50,21 @@ def build_era_summary(era: dict) -> str:
 | **R_total** | **{reward.get('R_total', 0):.3f}** |
 | **R_normalized** | **{reward.get('R_normalized', 0):.4f}** |
 """
-    return md
 
 def build_trajectory_table(era: dict) -> pd.DataFrame:
-    trajectory = era.get("trajectory", [])
+    phase_emoji = {
+        "OPERATION": "⚙️", "DRIFT_INJECTION": "🔴",
+        "SOCRATIC_RECOVERY": "🧑‍🏫", "LEGACY_GENERATION": "📝", "AWAKENING": "🌅"
+    }
     rows = []
-    for entry in trajectory:
+    for entry in era.get("trajectory", []):
         action = entry.get("action", {})
         phase = entry.get("phase", "")
-        phase_emoji = {"OPERATION": "⚙️", "DRIFT_INJECTION": "🔴", "SOCRATIC_RECOVERY": "🧑‍🏫", "LEGACY_GENERATION": "📝", "AWAKENING": "🌅"}.get(phase, "")
         rows.append({
             "Step": entry.get("step", 0),
             "Agent": entry.get("agent", "unknown"),
             "Action": action.get("action_type", "?"),
-            "Phase": f"{phase_emoji} {phase}",
+            "Phase": f"{phase_emoji.get(phase, '')} {phase}",
             "Details": json.dumps(action.get("payload", {}))[:150],
         })
     return pd.DataFrame(rows) if rows else pd.DataFrame(columns=["Step", "Agent", "Action", "Phase", "Details"])
@@ -99,7 +86,6 @@ def create_reward_chart(episode: dict) -> plt.Figure:
 
     x = np.arange(len(era_ids))
     width = 0.2
-
     for i, (comp, color) in enumerate(zip(components, colors)):
         values = [e.get("reward", {}).get(comp, 0) for e in eras]
         ax.bar(x + i * width, values, width, label=comp.replace('R_', '').replace('_', ' ').title(), color=color, alpha=0.85)
@@ -150,6 +136,8 @@ def create_component_radar(era: dict) -> plt.Figure:
 
 def create_drift_timeline(episode: dict) -> plt.Figure:
     eras = episode.get("era_results", [])
+    era_colors = ['#4CAF50', '#2196F3', '#FF9800', '#E91E63', '#9C27B0']
+
     fig, ax = plt.subplots(figsize=(12, 3))
     fig.patch.set_facecolor('#1a1a2e')
     ax.set_facecolor('#16213e')
@@ -158,22 +146,25 @@ def create_drift_timeline(episode: dict) -> plt.Figure:
     for era in eras:
         era_steps = era.get("steps_taken", 0)
         era_id = era.get("era_id", 0)
-        ax.axvspan(total_steps, total_steps + era_steps, alpha=0.15, color=['#4CAF50', '#2196F3', '#FF9800', '#E91E63', '#9C27B0'][era_id % 5])
+        ax.axvspan(total_steps, total_steps + era_steps, alpha=0.15, color=era_colors[era_id % 5])
         ax.text(total_steps + era_steps / 2, 1.5, f"Era {era_id}", ha='center', va='center', color='white', fontsize=10, fontweight='bold')
-        drifts = era.get("drifts_fired", 0)
-        if drifts > 0:
+
+        if era.get("drifts_fired", 0) > 0:
             for t in era.get("trajectory", []):
                 if t.get("phase") == "DRIFT_INJECTION" and t.get("agent") == "primary":
-                    ax.axvline(x=total_steps + t.get("step", 0), color='#FF4444', linewidth=2, alpha=0.8)
-                    ax.text(total_steps + t.get("step", 0), 2.5, "⚡DRIFT", ha='center', color='#FF4444', fontsize=8, rotation=45)
+                    x = total_steps + t.get("step", 0)
+                    ax.axvline(x=x, color='#FF4444', linewidth=2, alpha=0.8)
+                    ax.text(x, 2.5, "⚡DRIFT", ha='center', color='#FF4444', fontsize=8, rotation=45)
                     break
-        oversight = era.get("oversight_interventions", 0)
-        if oversight > 0:
+
+        if era.get("oversight_interventions", 0) > 0:
             for t in era.get("trajectory", []):
                 if t.get("agent") == "oversight":
-                    ax.axvline(x=total_steps + t.get("step", 0), color='#00BCD4', linewidth=2, alpha=0.8, linestyle='--')
-                    ax.text(total_steps + t.get("step", 0), 0.5, "🧑‍🏫", ha='center', fontsize=10)
+                    x = total_steps + t.get("step", 0)
+                    ax.axvline(x=x, color='#00BCD4', linewidth=2, alpha=0.8, linestyle='--')
+                    ax.text(x, 0.5, "🧑‍🏫", ha='center', fontsize=10)
                     break
+
         total_steps += era_steps
 
     ax.set_xlim(0, total_steps)
@@ -208,8 +199,7 @@ def create_baseline_comparison_chart(baseline: dict) -> plt.Figure:
 
     for ax, metric, title, color in zip(axes, metrics, titles, colors_list):
         ax.set_facecolor('#16213e')
-        scenario_names = []
-        values = []
+        scenario_names, values = [], []
         for scenario_id, runs in baseline.items():
             valid = [r for r in runs if "error" not in r]
             if valid:
@@ -228,9 +218,6 @@ def create_baseline_comparison_chart(baseline: dict) -> plt.Figure:
     plt.tight_layout()
     return fig
 
-# ──────────────────────────────────────────────────────────────────────────────
-# CALLBACKS
-# ──────────────────────────────────────────────────────────────────────────────
 
 def on_load_episode(file_path):
     if not file_path or not Path(file_path).exists():
@@ -252,30 +239,24 @@ def on_load_episode(file_path):
 | **Timestamp** | {episode.get('timestamp', 'N/A')} |
 """
     era_summaries = "\n---\n".join(build_era_summary(e) for e in eras)
-    chart = create_reward_chart(episode)
-    timeline = create_drift_timeline(episode)
-    return overview, era_summaries, chart, timeline, json.dumps(episode, indent=2, default=str)
+    return overview, era_summaries, create_reward_chart(episode), create_drift_timeline(episode), json.dumps(episode, indent=2, default=str)
 
 def on_select_era(file_path, era_idx):
     if not file_path or not Path(file_path).exists():
         return pd.DataFrame(), None
     episode = load_episode(file_path)
     eras = episode.get("era_results", [])
-    era_idx = int(era_idx) - 1
-    if era_idx < 0 or era_idx >= len(eras):
+    idx = int(era_idx) - 1
+    if idx < 0 or idx >= len(eras):
         return pd.DataFrame(), None
-    era = eras[era_idx]
+    era = eras[idx]
     return build_trajectory_table(era), create_component_radar(era)
 
 def on_run_simulation(scenario_id, num_eras):
     try:
         from run_episode import run_full_episode
         record_path = str(Path(__file__).parent / "episodes" / f"live_{scenario_id}.json")
-        result = asyncio.run(run_full_episode(
-            scenario_id=scenario_id,
-            num_eras=int(num_eras),
-            record_path=record_path,
-        ))
+        asyncio.run(run_full_episode(scenario_id=scenario_id, num_eras=int(num_eras), record_path=record_path))
         episode = load_episode(record_path)
         eras = episode.get("era_results", [])
         overview = f"## ✅ Simulation Complete: {episode.get('scenario_name', scenario_id)}\n"
@@ -283,16 +264,11 @@ def on_run_simulation(scenario_id, num_eras):
         for e in eras:
             r = e.get("reward", {})
             overview += f"- Era {e['era_id']}: R_norm={r.get('R_normalized', 0):.4f}, drifts={e.get('drifts_fired', 0)}, oversight={e.get('oversight_interventions', 0)}\n"
-        chart = create_reward_chart(episode)
-        timeline = create_drift_timeline(episode)
-        return overview, chart, timeline
-    except Exception as e:
+        return overview, create_reward_chart(episode), create_drift_timeline(episode)
+    except Exception:
         import traceback
         return f"## ❌ Simulation Failed\n```\n{traceback.format_exc()}\n```", None, None
 
-# ──────────────────────────────────────────────────────────────────────────────
-# GRADIO UI
-# ──────────────────────────────────────────────────────────────────────────────
 
 def build_ui():
     default_path = find_default_episode()
@@ -313,13 +289,11 @@ def build_ui():
             with gr.Row():
                 episode_path = gr.Textbox(label="Episode JSON Path", value=default_path, placeholder="episodes/test_run.json", scale=3)
                 load_btn = gr.Button("🔄 Load Episode", variant="primary", scale=1)
-
             with gr.Row():
                 with gr.Column(scale=1):
                     overview_md = gr.Markdown(label="Overview")
                 with gr.Column(scale=1):
                     reward_chart = gr.Plot(label="Reward per Era")
-
             timeline_chart = gr.Plot(label="Drift & Oversight Timeline")
             era_summaries_md = gr.Markdown(label="Era Details")
             raw_json = gr.Code(label="Raw JSON", language="json", visible=False)
@@ -336,7 +310,7 @@ def build_ui():
             drill_btn.click(on_select_era, inputs=[episode_path, era_selector], outputs=[trajectory_table, radar_chart])
 
         with gr.Tab("🚀 Live Simulation"):
-            gr.Markdown("### Run a simulation episode in real-time (offline mode — no Docker needed)")
+            gr.Markdown("### Run a simulation episode (offline mode — no Docker needed)")
             with gr.Row():
                 scenario_dd = gr.Dropdown(choices=["cascading_incident", "deployment_disaster", "invisible_outage"], value="cascading_incident", label="Scenario")
                 eras_slider = gr.Slider(minimum=1, maximum=5, value=3, step=1, label="Number of Eras")
@@ -349,8 +323,8 @@ def build_ui():
 
         with gr.Tab("📈 Baseline Results"):
             if baseline:
-                gr.Markdown("### Cross-Scenario Baseline Performance (Mock Agent, No Training)")
-                baseline_chart = gr.Plot(value=create_baseline_comparison_chart(baseline), label="Baseline Comparison")
+                gr.Markdown("### Baseline Performance — Mock Agent, No Training")
+                gr.Plot(value=create_baseline_comparison_chart(baseline), label="Baseline Comparison")
                 for scenario_id, runs in baseline.items():
                     valid = [r for r in runs if "error" not in r]
                     if valid:
@@ -386,7 +360,7 @@ Oversight Agent (Teacher)   Drift Injector → Silent schema changes
    LLM Judge              Reward Model (5 components, max 3.5)
 ```
 """)
-        # Auto-load default episode on startup
+
         if default_path:
             app.load(on_load_episode, inputs=[episode_path], outputs=[overview_md, era_summaries_md, reward_chart, timeline_chart, raw_json])
 

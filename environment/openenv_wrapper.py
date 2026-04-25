@@ -18,16 +18,14 @@ from environment.leakage_detector import LeakageDetector
 logger = logging.getLogger("epistemicops-env")
 
 
-# ---------------------------------------------------------------------------
-# Simulated API responses for offline mode (when Docker is not running)
-# ---------------------------------------------------------------------------
+# Simulated responses used when EPISTEMICOPS_OFFLINE=true
 SIMULATED_RESPONSES = {
     "get_incident_status": {
         "stable": lambda args: {
             "status_code": 200,
             "body": {
                 "incident_id": args.get("incident_id", "INC-2041"),
-                "status": 1,  # integer in stable mode
+                "status": 1,
                 "severity": "P2",
                 "assigned_to": "oncall-team-a",
                 "created_at": "2025-11-15T08:30:00Z",
@@ -38,7 +36,7 @@ SIMULATED_RESPONSES = {
             "status_code": 200,
             "body": {
                 "incident_id": args.get("incident_id", "INC-2041"),
-                "status": "INVESTIGATING",  # string enum in drifted mode (DE-001)
+                "status": "INVESTIGATING",  # DE-001: int → string enum
                 "severity": "P2",
                 "assigned_to": "oncall-team-a",
                 "created_at": "2025-11-15T08:30:00Z",
@@ -68,7 +66,7 @@ SIMULATED_RESPONSES = {
                 "service": args.get("service_name", "payment-service"),
                 "datapoints": [
                     {"timestamp": f"2025-11-15T09:{i:02d}:00Z",
-                     "metric_value": round(45 + random.uniform(-5, 15), 1)}  # DE-005: renamed field
+                     "metric_value": round(45 + random.uniform(-5, 15), 1)}  # DE-005: value → metric_value
                     for i in range(5)
                 ]
             }
@@ -80,7 +78,7 @@ SIMULATED_RESPONSES = {
             "body": {"deployment_id": args.get("deployment_id", "dep-001"), "status": "rolled_back"}
         },
         "drifted": lambda args: {
-            "status_code": 204,  # DE-002: 200→204
+            "status_code": 204,  # DE-002: 200 → 204
             "body": None
         }
     },
@@ -103,7 +101,7 @@ SIMULATED_RESPONSES = {
                     {"level": "ERROR", "message": "Connection pool exhausted", "service": "payment-service"},
                 ],
                 "total": 1,
-                "next_cursor": "abc123",  # DE-008: offset→cursor pagination
+                "next_cursor": "abc123",  # DE-008: offset → cursor pagination
             }
         }
     },
@@ -114,19 +112,13 @@ SIMULATED_RESPONSES = {
         },
         "drifted": lambda args: {
             "status_code": 200,
-            "body": {"delivered": False, "error": "rate_limited"}  # DE-003/DE-007
+            "body": {"delivered": False, "error": "rate_limited"}  # DE-003/007: rate limited
         }
     }
 }
 
 
 class EpistemicOpsEnv:
-    """
-    OpenEnv-compliant environment for EpistemicOps.
-    Implements the standard step(), reset(), state() interface.
-    
-    Supports both online (Docker) and offline (simulated) modes.
-    """
 
     def __init__(self, offline: bool = None):
         self.world = WorldEngine()
@@ -135,13 +127,11 @@ class EpistemicOpsEnv:
         self.parser = LegacyParser()
         self.leakage_detector = LeakageDetector()
         
-        # Detect offline mode
         if offline is None:
             self.offline = os.getenv("EPISTEMICOPS_OFFLINE", "true").lower() == "true"
         else:
             self.offline = offline
-        
-        # Runtime tracking
+
         self.action_history = []
         self.oversight_interventions = []
         self.primary_reasoning_trace = []
@@ -149,29 +139,17 @@ class EpistemicOpsEnv:
         self.scenario_id = None
 
     def reset(self, scenario_config: dict, era_id: int = 1, legacy_doc: str = None) -> dict:
-        """
-        Reset environment to start of a scenario era.
-        NOTE: This is a synchronous method. Drift injector reset is handled
-        by the orchestration layer (run_episode.py) to avoid async conflicts.
-        """
         self.scenario_id = scenario_config.get("id")
         self.world.initialize_era(scenario_config, era_id, legacy_doc)
         
-        # Reset runtime tracking
         self.action_history = []
         self.oversight_interventions = []
         self.primary_reasoning_trace = []
         self.current_legacy_doc = None
         self.injector.active_drifts = []
-
-        # Return initial observation
         return self._build_primary_observation("AWAKENING", None)
 
     async def step(self, agent_role: str, action: dict) -> Tuple[dict, float, bool, dict]:
-        """
-        Execute one action from either agent.
-        """
-        # 1. Validate permissions
         is_valid, err = self.validator.validate(agent_role, action)
         if not is_valid:
             obs = self._build_error_observation(err)
@@ -179,21 +157,17 @@ class EpistemicOpsEnv:
 
         action_type = action.get("action_type")
         payload = action.get("payload", {})
-
         reward = 0.0
         done = False
-        # 2. Process Action based on Role
+
         if agent_role == "primary":
             obs, done = await self._handle_primary_action(action_type, payload)
         elif agent_role == "oversight":
             obs, reward = await self._handle_oversight_action(action_type, payload)
-            
-        # 3. Advance step and check for Drift Injection
+
         if agent_role == "primary":
             self.world.advance_step()
             self.action_history.append({"action": action, "step": self.world.state.step})
-            
-            # Check if we should inject drift
             if self.world.state.phase == Phase.OPERATION:
                 drifts = self.injector.get_drift_for_step(self.world.state.step, self.world.era_config)
                 for drift in drifts:
@@ -235,7 +209,6 @@ class EpistemicOpsEnv:
         return {"status_code": 200, "body": {"result": "ok"}}
 
     async def _handle_primary_action(self, action_type: str, payload: dict) -> Tuple[dict, bool]:
-        """Process actions taken by the Primary Agent."""
         done = False
         obs = None
 
@@ -257,13 +230,11 @@ class EpistemicOpsEnv:
             
             tool_resp = await self._execute_tool_call(tool_name, args)
 
-            # Track tool call and results in world state
             self.world.state.tool_calls_made.append({
                 "tool": tool_name, "args": args,
                 "result": tool_resp, "step": self.world.state.step
             })
-            
-            # Track specific outcomes for criteria evaluation
+
             if tool_name == "resolve_incident" and tool_resp.get("status_code") in (200, 204):
                 self.world.state.incidents_resolved.append(args.get("incident_id", ""))
             if tool_name == "rollback_deployment" and tool_resp.get("status_code") in (200, 204):
@@ -275,13 +246,9 @@ class EpistemicOpsEnv:
 
             obs = self._build_primary_observation("Tool execution complete", tool_resp)
             
-            # If we are in DRIFT_INJECTION and a tool call fails/behaves unexpectedly,
-            # transition to SOCRATIC_RECOVERY
             if self.world.state.phase == Phase.DRIFT_INJECTION:
                 status = tool_resp.get("status_code", 200)
                 body = tool_resp.get("body")
-                
-                # Map tools to their services for drift checking
                 tool_service_map = {
                     "get_incident_status": "incident-api",
                     "resolve_incident": "incident-api",
@@ -290,20 +257,18 @@ class EpistemicOpsEnv:
                     "query_logs": "log-api",
                     "send_notification": "notify-api",
                 }
-                tool_service = tool_service_map.get(tool_name, "")
-                service_is_drifted = self.injector.is_drift_active(tool_service)
-                
-                # Trigger recovery on: HTTP errors, unexpected responses, or calls to drifted services
+                service = tool_service_map.get(tool_name, "")
+                is_drifted = self.injector.is_drift_active(service)
                 should_recover = (
                     status >= 400 or
                     "error" in tool_resp or
-                    (body is None and tool_name not in ("resolve_incident",)) or
+                    (body is None and tool_name != "resolve_incident") or
                     (isinstance(body, dict) and body.get("delivered") is False) or
-                    service_is_drifted  # Any call to a drifted service triggers recovery
+                    is_drifted
                 )
                 if should_recover:
                     self.world.transition_phase(Phase.SOCRATIC_RECOVERY)
-                    logger.info(f"  🔄 SOCRATIC_RECOVERY triggered (tool={tool_name}, status={status}, drifted={service_is_drifted})")
+                    logger.info(f"  🔄 SOCRATIC_RECOVERY triggered (tool={tool_name}, drifted={is_drifted})")
                 
         elif action_type == "write_legacy":
             doc_text, truncated, stats = self.parser.parse_and_truncate(payload.get("content", ""))
@@ -323,7 +288,6 @@ class EpistemicOpsEnv:
             if not self.current_legacy_doc:
                 obs = self._build_error_observation("Must call write_legacy before end_era")
             else:
-                # Validate hypotheses before era ends (fixes calibration reward)
                 self.world.validate_hypotheses()
                 done = True
                 obs = self._build_primary_observation("Era ended.", None)
@@ -334,11 +298,8 @@ class EpistemicOpsEnv:
         return obs, done
 
     async def _execute_tool_call(self, tool_name: str, args: dict) -> dict:
-        """Execute a tool call either via HTTP (online) or simulation (offline)."""
         if self.offline:
             return self._get_simulated_response(tool_name, args)
-        
-        # Online mode: make real HTTP calls
         try:
             if tool_name == "get_incident_status":
                 inc_id = args.get("incident_id")
@@ -379,8 +340,7 @@ class EpistemicOpsEnv:
                     r = await client.post(url, json=args, timeout=5.0)
                     return {"status_code": r.status_code, "body": r.json() if r.content else None}
             else:
-                # Fallback to direct HTTP call if tool_name is formatted as method:url
-                if ":" in str(tool_name):
+                if ":" in str(tool_name):  # method:url format
                     method, url = tool_name.split(":", 1)
                     async with httpx.AsyncClient() as client:
                         if method.upper() == "GET":
@@ -394,25 +354,17 @@ class EpistemicOpsEnv:
             return self._get_simulated_response(tool_name, args)
 
     async def _handle_oversight_action(self, action_type: str, payload: dict) -> Tuple[dict, float]:
-        """Process actions taken by the Oversight Agent."""
         reward = 0.0
-        
-        # Safely extract message content from payload
         if payload and len(payload) > 0:
             message_content = str(list(payload.values())[0])
         else:
             message_content = f"[{action_type}]"
         
-        # Check for answer leakage against the most recent drift event
         leakage_score = 0.0
         if self.world.state.drift_events_fired:
             last_drift = self.world.state.drift_events_fired[-1]
-            # Handle both dict and Pydantic model drift events
             drift_dict = last_drift if isinstance(last_drift, dict) else last_drift.model_dump() if hasattr(last_drift, 'model_dump') else {}
-            leakage_score = self.leakage_detector.evaluate_leakage(
-                message_content, 
-                drift_dict
-            )
+            leakage_score = self.leakage_detector.evaluate_leakage(message_content, drift_dict)
             
         self.oversight_interventions.append({
             "action": action_type,
@@ -421,13 +373,10 @@ class EpistemicOpsEnv:
             "step": self.world.state.step
         })
         
-        # Send intervention to primary agent
         obs = self._build_primary_observation(None, None, oversight_msg=message_content)
-        
         return obs, reward
 
     def _build_primary_observation(self, msg: str, tool_resp: dict, oversight_msg: str = None) -> dict:
-        """Construct the observation object for the primary agent."""
         obs = {
             "step": self.world.state.step,
             "phase": self.world.state.phase.value,
@@ -435,23 +384,19 @@ class EpistemicOpsEnv:
             "era_id": self.world.state.era_id,
         }
         
-        # Include drift info so mock agent can react
         if self.world.state.drift_events_fired:
             obs["drifts_detected"] = len(self.world.state.drift_events_fired)
-        
         if msg:
             obs["message"] = msg
         if tool_resp:
             obs["tool_response"] = tool_resp
         if oversight_msg:
             obs["oversight_message"] = {"present": True, "content": oversight_msg}
-            
-        # Get legacy doc from previous era if available
+
         prev_era_key = f"era_{self.world.state.era_id - 1}"
         if prev_era_key in self.world.state.legacy_document_store:
             obs["legacy_document"] = self.world.state.legacy_document_store[prev_era_key]
-            
-        # Add limited action history (last 5)
+
         obs["action_history_last_5"] = [a["action"] for a in self.action_history[-5:]]
         
         return obs

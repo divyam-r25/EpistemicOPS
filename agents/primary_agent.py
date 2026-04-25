@@ -7,7 +7,7 @@ from openai import OpenAI
 logger = logging.getLogger("primary-agent")
 
 class PrimaryAgent:
-    """The Student Agent handling SRE tasks and API calls."""
+    """Student agent for SRE task resolution and drift detection."""
     
     SYSTEM_PROMPT = """You are the Primary Agent (Student), an elite enterprise Site Reliability Engineer.
 Your task is to resolve the current era's incident using available API tools.
@@ -43,10 +43,6 @@ Available Actions (output ONLY a valid JSON object):
         self.model = model or os.getenv("PRIMARY_AGENT_MODEL", "gpt-4o-mini")
 
     def generate_action(self, observation: dict, conversation_history: list = None) -> dict:
-        """
-        Generate next action based on observation and conversation history.
-        Supports multi-turn reasoning within an era.
-        """
         if observation.get("phase") == "AWAKENING":
             legacy_doc = observation.get("legacy_document", "")
             summary = f"Ready. Legacy doc available: {bool(legacy_doc)}"
@@ -55,11 +51,9 @@ Available Actions (output ONLY a valid JSON object):
                 "payload": {"world_model_summary": summary}
             }
 
-        # Build multi-turn message history
         messages = [{"role": "system", "content": self.SYSTEM_PROMPT}]
-        
         if conversation_history:
-            for entry in conversation_history[-20:]:  # Keep last 20 turns for context window
+            for entry in conversation_history[-20:]:
                 if entry.get("role") == "assistant":
                     messages.append({"role": "assistant", "content": json.dumps(entry.get("action", {}))})
                 elif entry.get("role") == "environment":
@@ -67,8 +61,6 @@ Available Actions (output ONLY a valid JSON object):
                     messages.append({"role": "user", "content": f"Environment Response:\n{obs_summary}"})
                 elif entry.get("role") == "oversight":
                     messages.append({"role": "user", "content": f"Oversight Agent (Teacher) Message:\n{entry.get('msg', '')}"})
-        
-        # Add current observation
         messages.append({"role": "user", "content": f"Current Observation:\n{json.dumps(observation, indent=2)}\n\nOutput ONLY a valid JSON action object."})
         
         if not self.client:
@@ -92,7 +84,6 @@ Available Actions (output ONLY a valid JSON object):
             }
 
     def _summarize_observation(self, obs: dict) -> str:
-        """Compact observation summary to save context window tokens."""
         parts = []
         if obs.get("message"):
             parts.append(f"Message: {obs['message']}")
@@ -104,11 +95,6 @@ Available Actions (output ONLY a valid JSON object):
         return "\n".join(parts) if parts else json.dumps(obs)[:300]
 
     def _mock_action(self, observation: dict, conversation_history: list = None) -> dict:
-        """Scenario-aware mock actions for testing without API keys.
-        
-        Produces varied behavior per era and scenario, extends past drift windows,
-        and triggers drift detection + oversight flows.
-        """
         step = observation.get("step", 0)
         phase = observation.get("phase", "OPERATION")
         era_id = observation.get("era_id", 1)
@@ -117,7 +103,6 @@ Available Actions (output ONLY a valid JSON object):
         has_drift = observation.get("drifts_detected", 0) > 0
         has_oversight = observation.get("oversight_message", {}).get("present", False)
         
-        # Count how many actions have happened since we entered recovery/drift
         recovery_actions = 0
         if conversation_history:
             for entry in reversed(conversation_history):
@@ -125,8 +110,7 @@ Available Actions (output ONLY a valid JSON object):
                     break
                 if entry.get("role") == "assistant":
                     recovery_actions += 1
-        
-        # Phase: SOCRATIC_RECOVERY — agent responds to oversight guidance
+
         if phase == "SOCRATIC_RECOVERY":
             if has_oversight:
                 return {
@@ -138,7 +122,6 @@ Available Actions (output ONLY a valid JSON object):
                         "confidence": random.choice([0.55, 0.6, 0.65, 0.7, 0.75])
                     }
                 }
-            # Structured recovery sequence after oversight
             recovery_sequence = [
                 self._get_scenario_probe_action(task_brief, era_id),
                 {"action_type": "write_reasoning", "payload": {"thought": "After re-examining the API response with fresh eyes, I can see the schema has changed. I'll adapt my approach to handle the new format."}},
@@ -149,10 +132,9 @@ Available Actions (output ONLY a valid JSON object):
             idx = min(recovery_actions, len(recovery_sequence) - 1)
             return recovery_sequence[idx]
         
-        # Phase: LEGACY_GENERATION
         if phase == "LEGACY_GENERATION":
             msg = observation.get("message", "")
-            recent_actions = [h.get("action", {}).get("action_type") 
+            recent_actions = [h.get("action", {}).get("action_type")
                             for h in (conversation_history or [])[-3:]]
             if "Legacy document saved" in msg or "write_legacy" in recent_actions:
                 return {"action_type": "end_era", "payload": {}}
@@ -161,7 +143,6 @@ Available Actions (output ONLY a valid JSON object):
                 "payload": {"content": self._generate_mock_legacy_doc(observation, has_drift)}
             }
         
-        # Phase: DRIFT_INJECTION — agent encounters the drift
         if phase == "DRIFT_INJECTION":
             drift_actions = 0
             if conversation_history:
@@ -171,30 +152,23 @@ Available Actions (output ONLY a valid JSON object):
                         break
                     if entry.get("role") == "assistant":
                         drift_actions += 1
-            
             drift_sequence = [
                 self._get_scenario_probe_action(task_brief, era_id),
                 {"action_type": "write_reasoning", "payload": {"thought": f"Step {step}: The API response looks different from what I expected. Fields may have been renamed or types changed. This could be a schema drift."}},
                 self._get_scenario_probe_action(task_brief, era_id),
             ]
-            idx = min(drift_actions, len(drift_sequence) - 1)
-            return drift_sequence[idx]
-        
-        # Phase: OPERATION — structured mock sequence that varies by era
+            return drift_sequence[min(drift_actions, len(drift_sequence) - 1)]
+
         if phase == "OPERATION":
             return self._get_operation_action(step, era_id, task_brief, history_len, observation)
-        
-        # Fallback
+
         return {
             "action_type": "write_reasoning",
-            "payload": {"thought": f"Analyzing at step {step}, phase {phase}, era {era_id}. History depth: {history_len}"}
+            "payload": {"thought": f"Analyzing at step {step}, phase {phase}, era {era_id}."}
         }
 
-    def _get_operation_action(self, step: int, era_id: int, task_brief: str, 
+    def _get_operation_action(self, step: int, era_id: int, task_brief: str,
                               history_len: int, observation: dict) -> dict:
-        """Generate operation-phase actions that vary by era and extend past drift windows."""
-        
-        # Determine which tools to use based on the task brief / era
         is_incident_era = "incident" in task_brief.lower() or "INC-" in task_brief
         is_deploy_era = "deploy" in task_brief.lower() or "rollback" in task_brief.lower()
         is_metrics_era = "metric" in task_brief.lower() or "latency" in task_brief.lower() or "outage" in task_brief.lower()
@@ -215,10 +189,8 @@ Available Actions (output ONLY a valid JSON object):
         return sequence
 
     def _incident_sequence(self, step: int, history_len: int, era_id: int) -> dict:
-        """Incident investigation sequence — extends to ~20 steps."""
         incident_id = f"INC-{2041 + (era_id - 1) * 48}"
         actions = [
-            # Early investigation
             {"action_type": "call_tool", "payload": {"tool": "get_incident_status", "args": {"incident_id": incident_id}}},
             {"action_type": "write_reasoning", "payload": {"thought": f"Checking incident {incident_id}. Need to understand current status and severity."}},
             {"action_type": "call_tool", "payload": {"tool": "get_metrics", "args": {"service_name": "payment-service", "metric": "latency"}}},
@@ -226,20 +198,17 @@ Available Actions (output ONLY a valid JSON object):
             {"action_type": "call_tool", "payload": {"tool": "query_logs", "args": {"service": "payment-service", "level": "ERROR"}}},
             {"action_type": "write_reasoning", "payload": {"thought": "Logs confirm connection pool errors. Checking notification channels."}},
             {"action_type": "call_tool", "payload": {"tool": "send_notification", "args": {"channel": "slack", "message": f"Investigating {incident_id}: potential connection pool exhaustion"}}},
-            # Post-drift investigation (these steps happen after drift window)
             {"action_type": "call_tool", "payload": {"tool": "get_incident_status", "args": {"incident_id": incident_id}}},
             {"action_type": "write_reasoning", "payload": {"thought": "Re-checking incident status. The response format looks different from before — possible API drift."}},
             {"action_type": "declare_hypothesis", "payload": {"hypothesis": "The incident-api schema may have drifted: status field type appears to have changed from integer to string enum", "confidence": 0.7}},
             {"action_type": "call_tool", "payload": {"tool": "get_metrics", "args": {"service_name": "payment-service", "metric": "error_rate"}}},
             {"action_type": "call_tool", "payload": {"tool": "resolve_incident", "args": {"incident_id": incident_id, "resolution_notes": "Fixed via connection pool resize and API adaptation", "resolved_by": "primary-agent"}}},
-            # Wrap up
             {"action_type": "declare_task_complete", "payload": {"outcome": "resolved", "summary": f"Resolved {incident_id}. Detected potential API drift in incident-api."}},
         ]
         idx = min(history_len // 2, len(actions) - 1)
         return actions[idx]
 
     def _deploy_sequence(self, step: int, history_len: int, era_id: int) -> dict:
-        """Deployment / rollback sequence."""
         actions = [
             {"action_type": "call_tool", "payload": {"tool": "get_metrics", "args": {"service_name": "payment-service", "metric": "error_rate"}}},
             {"action_type": "write_reasoning", "payload": {"thought": "Checking error rates post-deployment. Need to determine if rollback is necessary."}},
@@ -256,7 +225,6 @@ Available Actions (output ONLY a valid JSON object):
         return actions[idx]
 
     def _metrics_sequence(self, step: int, history_len: int, era_id: int) -> dict:
-        """Metrics investigation / invisible outage sequence."""
         actions = [
             {"action_type": "call_tool", "payload": {"tool": "get_metrics", "args": {"service_name": "payment-service", "metric": "latency"}}},
             {"action_type": "write_reasoning", "payload": {"thought": "Checking latency metrics. Services appear healthy but may have silent regression."}},
@@ -273,7 +241,6 @@ Available Actions (output ONLY a valid JSON object):
         return actions[idx]
 
     def _automation_sequence(self, step: int, history_len: int, era_id: int) -> dict:
-        """Automation / hardening sequence."""
         actions = [
             {"action_type": "call_tool", "payload": {"tool": "get_incident_status", "args": {"incident_id": "INC-2090"}}},
             {"action_type": "call_tool", "payload": {"tool": "get_metrics", "args": {"service_name": "payment-service", "metric": "error_rate"}}},
@@ -290,7 +257,6 @@ Available Actions (output ONLY a valid JSON object):
         return actions[idx]
 
     def _generic_sequence(self, step: int, history_len: int, era_id: int) -> dict:
-        """Generic fallback sequence."""
         actions = [
             {"action_type": "call_tool", "payload": {"tool": "get_incident_status", "args": {"incident_id": "INC-2041"}}},
             {"action_type": "call_tool", "payload": {"tool": "get_metrics", "args": {"service_name": "payment-service", "metric": "latency"}}},
@@ -303,7 +269,6 @@ Available Actions (output ONLY a valid JSON object):
         return actions[idx]
 
     def _get_scenario_probe_action(self, task_brief: str, era_id: int) -> dict:
-        """Generate a tool call to probe the drifted API."""
         if "incident" in task_brief.lower():
             return {"action_type": "call_tool", "payload": {"tool": "get_incident_status", "args": {"incident_id": f"INC-{2041 + (era_id - 1) * 48}"}}}
         elif "deploy" in task_brief.lower():
@@ -314,7 +279,6 @@ Available Actions (output ONLY a valid JSON object):
             return {"action_type": "call_tool", "payload": {"tool": "get_incident_status", "args": {"incident_id": "INC-2041"}}}
 
     def _get_scenario_resolve_action(self, task_brief: str, era_id: int) -> dict:
-        """Generate the appropriate resolution action for the current scenario."""
         if "incident" in task_brief.lower():
             return {"action_type": "call_tool", "payload": {"tool": "resolve_incident", "args": {"incident_id": f"INC-{2041 + (era_id - 1) * 48}", "resolution_notes": "Resolved after adapting to schema drift", "resolved_by": "primary-agent"}}}
         elif "deploy" in task_brief.lower():
@@ -325,11 +289,10 @@ Available Actions (output ONLY a valid JSON object):
             return {"action_type": "call_tool", "payload": {"tool": "resolve_incident", "args": {"incident_id": "INC-2041", "resolution_notes": "Resolved", "resolved_by": "primary-agent"}}}
 
     def _generate_mock_legacy_doc(self, observation: dict, has_drift: bool = False) -> str:
-        """Generate a structurally compliant mock legacy document that varies by era."""
         era_id = observation.get("era_id", observation.get("step", 1))
         drifts_count = observation.get("drifts_detected", 0)
         task = observation.get("era_task_brief", "Unknown task")
-        
+
         drift_section = ""
         if has_drift or drifts_count > 0:
             drift_section = """CONFIRMED: API schema drift detected during this era.
