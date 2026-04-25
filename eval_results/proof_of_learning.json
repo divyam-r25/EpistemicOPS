@@ -1,0 +1,46 @@
+{
+  "config": {
+    "scenarios": [
+      "cascading_incident",
+      "deployment_disaster",
+      "invisible_outage"
+    ],
+    "runs_per_scenario": 3,
+    "eras_per_run": 3,
+    "baseline_profile": "baseline",
+    "trained_profile": "trained",
+    "trained_agent_source": "profile",
+    "trained_checkpoint_path": null,
+    "mode": "profile_vs_profile",
+    "offline_mode": false
+  },
+  "summary": {
+    "baseline": {
+      "avg_reward": 0.2958,
+      "avg_criteria_completion": 0.6852,
+      "drift_detection_rate": 0.0,
+      "incident_resolution_rate": 0.1111,
+      "legacy_doc_rate": 1.0
+    },
+    "trained": {
+      "avg_reward": 0.3449,
+      "avg_criteria_completion": 0.7222,
+      "drift_detection_rate": 0.7778,
+      "incident_resolution_rate": 0.2222,
+      "legacy_doc_rate": 1.0
+    }
+  },
+  "deltas": {
+    "avg_reward": 0.0491,
+    "avg_criteria_completion": 0.037,
+    "drift_detection_rate": 0.7778,
+    "incident_resolution_rate": 0.1111,
+    "legacy_doc_rate": 0.0
+  },
+  "examples": {
+    "before": "- step 0: ready_to_operate | {\"world_model_summary\": \"Ready. Legacy doc available: False\"}\n- step 1: call_tool | {\"tool\": \"get_incident_status\", \"args\": {\"incident_id\": \"INC-2041\"}}\n- step 2: call_tool | {\"tool\": \"get_incident_status\", \"args\": {\"incident_id\": \"INC-2041\"}}\n- step 3: call_tool | {\"tool\": \"resolve_incident\", \"args\": {\"incident_id\": \"INC-2041\", \"resolution_notes\": \"Applied standard remedia...\n- step 4: call_tool | {\"tool\": \"resolve_incident\", \"args\": {\"incident_id\": \"INC-2041\", \"resolution_notes\": \"Applied standard remedia...\n- step 5: declare_task_complete | {\"outcome\": \"resolved\", \"summary\": \"Resolved using standard playbook.\"}\n- step 6: write_legacy | {\"content\": \"SECTION 1: WORLD STATE AT ERA END\\nInvestigated issue with standard workflow.\\n\\nSECTION 2: TRUST...\n- step 7: end_era | {}",
+    "after": "- step 0: ready_to_operate | {\"world_model_summary\": \"Ready. Legacy doc available: True\"}\n- step 1: write_reasoning | {\"thought\": \"Checking incident INC-2089. Need to understand current status and severity.\"}\n- step 2: call_tool | {\"tool\": \"get_metrics\", \"args\": {\"service_name\": \"payment-service\", \"metric\": \"latency\"}}\n- step 3: declare_hypothesis | {\"hypothesis\": \"The incident may be related to connection pool exhaustion based on latency patterns\", \"confide...\n- step 4: call_tool | {\"tool\": \"query_logs\", \"args\": {\"service\": \"payment-service\", \"level\": \"ERROR\"}}\n- step 5: write_reasoning | {\"thought\": \"Logs confirm connection pool errors. Checking notification channels.\"}\n- step 6: call_tool | {\"tool\": \"send_notification\", \"args\": {\"channel\": \"slack\", \"message\": \"Investigating INC-2089: potential conne...\n- step 7: call_tool | {\"tool\": \"get_incident_status\", \"args\": {\"incident_id\": \"INC-2089\"}}\n- step 8: write_reasoning | {\"thought\": \"Re-checking incident status. The response format looks different from before \\u2014 possible API ...\n- step 9: declare_hypothesis | {\"hypothesis\": \"The incident-api schema may have drifted: status field type appears to have changed from integ...\n- step 10: call_tool | {\"tool\": \"get_metrics\", \"args\": {\"service_name\": \"payment-service\", \"metric\": \"error_rate\"}}\n- step 11: call_tool | {\"tool\": \"rollback_deployment\", \"args\": {\"deployment_id\": \"dep-002\", \"token\": \"deploy-token-v2\"}}",
+    "baseline_episode": "episodes/baseline_cascading_incident_run1.json",
+    "trained_episode": "episodes/trained_cascading_incident_run1.json"
+  }
+}

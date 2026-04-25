@@ -1,0 +1,244 @@
+{
+  "label": "Baseline (Zero-Shot)",
+  "scenario": "invisible_outage",
+  "num_episodes": 5,
+  "avg_drift_detection_rate": 0.0,
+  "legacy_doc_completion_rate": 1.0,
+  "raw_results": [
+    [
+      {
+        "era_id": 1,
+        "steps_taken": 8,
+        "drifts_detected": 0,
+        "total_drifts": 0,
+        "drift_detection_rate": 0.0,
+        "legacy_doc_written": true,
+        "legacy_doc_length": 405
+      },
+      {
+        "era_id": 2,
+        "steps_taken": 8,
+        "drifts_detected": 0,
+        "total_drifts": 0,
+        "drift_detection_rate": 0.0,
+        "legacy_doc_written": true,
+        "legacy_doc_length": 405
+      },
+      {
+        "era_id": 3,
+        "steps_taken": 8,
+        "drifts_detected": 0,
+        "total_drifts": 0,
+        "drift_detection_rate": 0.0,
+        "legacy_doc_written": true,
+        "legacy_doc_length": 405
+      },
+      {
+        "era_id": 4,
+        "steps_taken": 8,
+        "drifts_detected": 0,
+        "total_drifts": 0,
+        "drift_detection_rate": 0.0,
+        "legacy_doc_written": true,
+        "legacy_doc_length": 405
+      },
+      {
+        "era_id": 5,
+        "steps_taken": 8,
+        "drifts_detected": 0,
+        "total_drifts": 0,
+        "drift_detection_rate": 0.0,
+        "legacy_doc_written": true,
+        "legacy_doc_length": 405
+      }
+    ],
+    [
+      {
+        "era_id": 1,
+        "steps_taken": 8,
+        "drifts_detected": 0,
+        "total_drifts": 0,
+        "drift_detection_rate": 0.0,
+        "legacy_doc_written": true,
+        "legacy_doc_length": 405
+      },
+      {
+        "era_id": 2,
+        "steps_taken": 8,
+        "drifts_detected": 0,
+        "total_drifts": 0,
+        "drift_detection_rate": 0.0,
+        "legacy_doc_written": true,
+        "legacy_doc_length": 405
+      },
+      {
+        "era_id": 3,
+        "steps_taken": 8,
+        "drifts_detected": 0,
+        "total_drifts": 0,
+        "drift_detection_rate": 0.0,
+        "legacy_doc_written": true,
+        "legacy_doc_length": 405
+      },
+      {
+        "era_id": 4,
+        "steps_taken": 8,
+        "drifts_detected": 0,
+        "total_drifts": 0,
+        "drift_detection_rate": 0.0,
+        "legacy_doc_written": true,
+        "legacy_doc_length": 405
+      },
+      {
+        "era_id": 5,
+        "steps_taken": 8,
+        "drifts_detected": 0,
+        "total_drifts": 0,
+        "drift_detection_rate": 0.0,
+        "legacy_doc_written": true,
+        "legacy_doc_length": 405
+      }
+    ],
+    [
+      {
+        "era_id": 1,
+        "steps_taken": 8,
+        "drifts_detected": 0,
+        "total_drifts": 0,
+        "drift_detection_rate": 0.0,
+        "legacy_doc_written": true,
+        "legacy_doc_length": 405
+      },
+      {
+        "era_id": 2,
+        "steps_taken": 8,
+        "drifts_detected": 0,
+        "total_drifts": 0,
+        "drift_detection_rate": 0.0,
+        "legacy_doc_written": true,
+        "legacy_doc_length": 405
+      },
+      {
+        "era_id": 3,
+        "steps_taken": 8,
+        "drifts_detected": 0,
+        "total_drifts": 0,
+        "drift_detection_rate": 0.0,
+        "legacy_doc_written": true,
+        "legacy_doc_length": 405
+      },
+      {
+        "era_id": 4,
+        "steps_taken": 8,
+        "drifts_detected": 0,
+        "total_drifts": 0,
+        "drift_detection_rate": 0.0,
+        "legacy_doc_written": true,
+        "legacy_doc_length": 405
+      },
+      {
+        "era_id": 5,
+        "steps_taken": 8,
+        "drifts_detected": 0,
+        "total_drifts": 0,
+        "drift_detection_rate": 0.0,
+        "legacy_doc_written": true,
+        "legacy_doc_length": 405
+      }
+    ],
+    [
+      {
+        "era_id": 1,
+        "steps_taken": 8,
+        "drifts_detected": 0,
+        "total_drifts": 0,
+        "drift_detection_rate": 0.0,
+        "legacy_doc_written": true,
+        "legacy_doc_length": 405
+      },
+      {
+        "era_id": 2,
+        "steps_taken": 8,
+        "drifts_detected": 0,
+        "total_drifts": 0,
+        "drift_detection_rate": 0.0,
+        "legacy_doc_written": true,
+        "legacy_doc_length": 405
+      },
+      {
+        "era_id": 3,
+        "steps_taken": 8,
+        "drifts_detected": 0,
+        "total_drifts": 0,
+        "drift_detection_rate": 0.0,
+        "legacy_doc_written": true,
+        "legacy_doc_length": 405
+      },
+      {
+        "era_id": 4,
+        "steps_taken": 8,
+        "drifts_detected": 0,
+        "total_drifts": 0,
+        "drift_detection_rate": 0.0,
+        "legacy_doc_written": true,
+        "legacy_doc_length": 405
+      },
+      {
+        "era_id": 5,
+        "steps_taken": 8,
+        "drifts_detected": 0,
+        "total_drifts": 0,
+        "drift_detection_rate": 0.0,
+        "legacy_doc_written": true,
+        "legacy_doc_length": 405
+      }
+    ],
+    [
+      {
+        "era_id": 1,
+        "steps_taken": 8,
+        "drifts_detected": 0,
+        "total_drifts": 0,
+        "drift_detection_rate": 0.0,
+        "legacy_doc_written": true,
+        "legacy_doc_length": 405
+      },
+      {
+        "era_id": 2,
+        "steps_taken": 8,
+        "drifts_detected": 0,
+        "total_drifts": 0,
+        "drift_detection_rate": 0.0,
+        "legacy_doc_written": true,
+        "legacy_doc_length": 405
+      },
+      {
+        "era_id": 3,
+        "steps_taken": 8,
+        "drifts_detected": 0,
+        "total_drifts": 0,
+        "drift_detection_rate": 0.0,
+        "legacy_doc_written": true,
+        "legacy_doc_length": 405
+      },
+      {
+        "era_id": 4,
+        "steps_taken": 8,
+        "drifts_detected": 0,
+        "total_drifts": 0,
+        "drift_detection_rate": 0.0,
+        "legacy_doc_written": true,
+        "legacy_doc_length": 405
+      },
+      {
+        "era_id": 5,
+        "steps_taken": 8,
+        "drifts_detected": 0,
+        "total_drifts": 0,
+        "drift_detection_rate": 0.0,
+        "legacy_doc_written": true,
+        "legacy_doc_length": 405
+      }
+    ]
+  ]
+}
