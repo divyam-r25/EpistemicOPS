@@ -49,7 +49,7 @@ class CheckpointPrimaryAgent:
     def __init__(self, checkpoint_path: str):
         try:
             from transformers import AutoModelForCausalLM, AutoTokenizer
-            import torch
+            torch = __import__("torch")
         except ImportError as exc:
             raise RuntimeError(
                 "checkpoint mode requires transformers and torch. "
@@ -330,6 +330,12 @@ def _parse_args():
         default="",
         help="Path to a local HF checkpoint used when --trained-agent-source=checkpoint",
     )
+    parser.add_argument(
+        "--on-checkpoint-error",
+        default="fallback_profile",
+        choices=["fallback_profile", "fail"],
+        help="Behavior when checkpoint mode cannot start (e.g., missing torch/checkpoint).",
+    )
     return parser.parse_args()
 
 
@@ -350,14 +356,39 @@ async def main():
         agent_mode="profile",
     )
     print("Running trained policy...")
-    trained_runs = await _run_policy(
-        args.trained_profile if args.trained_agent_source == "profile" else "trained_ckpt",
-        scenarios,
-        args.runs_per_scenario,
-        args.eras_per_run,
-        agent_mode=args.trained_agent_source,
-        checkpoint_path=args.trained_checkpoint_path or None,
-    )
+    effective_trained_source = args.trained_agent_source
+    effective_trained_label = args.trained_profile if args.trained_agent_source == "profile" else "trained_ckpt"
+    effective_checkpoint_path = args.trained_checkpoint_path or None
+    fallback_reason = None
+    try:
+        trained_runs = await _run_policy(
+            effective_trained_label,
+            scenarios,
+            args.runs_per_scenario,
+            args.eras_per_run,
+            agent_mode=effective_trained_source,
+            checkpoint_path=effective_checkpoint_path,
+        )
+    except Exception as exc:
+        if args.trained_agent_source == "checkpoint" and args.on_checkpoint_error == "fallback_profile":
+            fallback_reason = f"{type(exc).__name__}: {exc}"
+            print(
+                "[WARN] Checkpoint mode failed; falling back to profile mode. "
+                f"Reason: {fallback_reason}"
+            )
+            effective_trained_source = "profile"
+            effective_trained_label = args.trained_profile
+            effective_checkpoint_path = None
+            trained_runs = await _run_policy(
+                effective_trained_label,
+                scenarios,
+                args.runs_per_scenario,
+                args.eras_per_run,
+                agent_mode="profile",
+                checkpoint_path=None,
+            )
+        else:
+            raise
 
     summary = {
         "baseline": _aggregate(baseline_runs),
@@ -379,10 +410,13 @@ async def main():
             "eras_per_run": args.eras_per_run,
             "baseline_profile": args.baseline_profile,
             "trained_profile": args.trained_profile,
-            "trained_agent_source": args.trained_agent_source,
-            "trained_checkpoint_path": args.trained_checkpoint_path or None,
-            "mode": "profile_vs_profile" if args.trained_agent_source == "profile" else "profile_vs_checkpoint",
+            "trained_agent_source": effective_trained_source,
+            "trained_checkpoint_path": effective_checkpoint_path,
+            "mode": "profile_vs_profile" if effective_trained_source == "profile" else "profile_vs_checkpoint",
             "offline_mode": os.getenv("EPISTEMICOPS_OFFLINE", "").lower() == "true",
+            "checkpoint_fallback_used": fallback_reason is not None,
+            "checkpoint_fallback_reason": fallback_reason,
+            "on_checkpoint_error": args.on_checkpoint_error,
         },
         "summary": summary,
         "deltas": {
