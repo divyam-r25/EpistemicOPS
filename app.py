@@ -1,14 +1,14 @@
 """
-EpistemicOps — HuggingFace Spaces Demo
-========================================
-Self-contained Gradio dashboard for replaying pre-recorded episodes,
-viewing baseline evaluation results, and exploring the reward model.
-
-Works entirely offline — no Docker, no LLM APIs, no external services.
+EpistemicOps — HuggingFace Space Dashboard
+============================================
+Self-contained Gradio dashboard for episode replay, baseline results,
+and live simulation. Works offline (no Docker/API keys needed).
 """
 import gradio as gr
 import json
+import sys
 import os
+import asyncio
 import pandas as pd
 import matplotlib
 matplotlib.use('Agg')
@@ -16,124 +16,110 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
 
-# ──────────────────────────────────────────────────────────────────────────────
-# PATH RESOLUTION — works both locally and on HF Spaces
-# ──────────────────────────────────────────────────────────────────────────────
-ROOT = Path(__file__).parent
-
-EPISODE_DIR = ROOT / "episodes"
-EVAL_DIR = ROOT / "eval_results"
-SCENARIO_DIR = ROOT / "scenarios"
+sys.path.insert(0, str(Path(__file__).parent))
 
 # ──────────────────────────────────────────────────────────────────────────────
-# DATA LOADING
+# HELPERS
 # ──────────────────────────────────────────────────────────────────────────────
 
-def load_json(path: Path) -> dict:
-    """Safely load a JSON file."""
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except Exception as e:
-        return {"error": str(e)}
+def load_episode(path: str) -> dict:
+    with open(path) as f:
+        return json.load(f)
 
+def find_default_episode() -> str:
+    candidates = [
+        Path(__file__).parent / "episodes" / "test_run.json",
+        Path(__file__).parent / "episodes" / "sample_episode.json",
+    ]
+    for c in candidates:
+        if c.exists():
+            return str(c)
+    return ""
 
-def find_episodes() -> list:
-    """Find all episode JSON files."""
-    if not EPISODE_DIR.exists():
-        return []
-    return sorted([f.name for f in EPISODE_DIR.glob("*.json")])
+def build_era_summary(era: dict) -> str:
+    reward = era.get("reward", {})
+    criteria_met = era.get("criteria_met", [])
+    criteria_total = era.get("criteria_total", [])
+    steps = era.get("steps_taken", 0)
+    drifts = era.get("drifts_fired", 0)
+    oversight = era.get("oversight_interventions", 0)
 
+    met_str = ", ".join(criteria_met) if criteria_met else "None"
 
-def find_eval_results() -> list:
-    """Find all evaluation result files."""
-    if not EVAL_DIR.exists():
-        return []
-    return sorted([f.name for f in EVAL_DIR.glob("*.json")])
+    drift_badge = f"🔴 **{drifts} drift(s)**" if drifts > 0 else "🟢 No drifts"
+    oversight_badge = f"🧑‍🏫 **{oversight} intervention(s)**" if oversight > 0 else "—"
 
+    md = f"""### Era {era.get('era_id', '?')}  {drift_badge}  |  {oversight_badge}
+| Metric | Value |
+|--------|-------|
+| Steps Taken | {steps} |
+| Criteria Met | {len(criteria_met)} / {len(criteria_total)} |
+| Met | {met_str} |
+| R_era_task | {reward.get('R_era_task', 0):.3f} |
+| R_calibration | {reward.get('R_calibration', 1.0):.2f}× |
+| R_teacher_delta | {reward.get('R_teacher_delta', 0):.3f} |
+| R_legacy_utility | {reward.get('R_legacy_utility', 0):.3f} |
+| R_leakage | {reward.get('R_answer_leakage', 0):.3f} |
+| R_anti_hack | {reward.get('R_anti_hack_penalty', 0):.3f} |
+| **R_total** | **{reward.get('R_total', 0):.3f}** |
+| **R_normalized** | **{reward.get('R_normalized', 0):.4f}** |
+"""
+    return md
 
-def load_scenario_names() -> dict:
-    """Load scenario YAML files to get names."""
-    names = {}
-    if SCENARIO_DIR.exists():
-        import yaml
-        for f in SCENARIO_DIR.glob("*.yaml"):
-            try:
-                with open(f) as fh:
-                    data = yaml.safe_load(fh)
-                    names[f.stem] = data.get("name", f.stem)
-            except Exception:
-                names[f.stem] = f.stem
-    return names
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# VISUALIZATIONS
-# ──────────────────────────────────────────────────────────────────────────────
-
-DARK_BG = '#0f0f23'
-PANEL_BG = '#1a1a2e'
-CHART_BG = '#16213e'
-ACCENT = '#00d4ff'
-ACCENT2 = '#7c3aed'
-COLORS = ['#4CAF50', '#2196F3', '#FF9800', '#E91E63', '#00BCD4']
-
-
-def _style_fig(fig, ax):
-    """Apply dark theme to a matplotlib figure."""
-    fig.patch.set_facecolor(PANEL_BG)
-    ax.set_facecolor(CHART_BG)
-    ax.tick_params(colors='white')
-    ax.xaxis.label.set_color('white')
-    ax.yaxis.label.set_color('white')
-    ax.title.set_color('white')
-    for spine in ax.spines.values():
-        spine.set_color('#333')
-    ax.grid(axis='y', alpha=0.15, color='white')
-
+def build_trajectory_table(era: dict) -> pd.DataFrame:
+    trajectory = era.get("trajectory", [])
+    rows = []
+    for entry in trajectory:
+        action = entry.get("action", {})
+        phase = entry.get("phase", "")
+        phase_emoji = {"OPERATION": "⚙️", "DRIFT_INJECTION": "🔴", "SOCRATIC_RECOVERY": "🧑‍🏫", "LEGACY_GENERATION": "📝", "AWAKENING": "🌅"}.get(phase, "")
+        rows.append({
+            "Step": entry.get("step", 0),
+            "Agent": entry.get("agent", "unknown"),
+            "Action": action.get("action_type", "?"),
+            "Phase": f"{phase_emoji} {phase}",
+            "Details": json.dumps(action.get("payload", {}))[:150],
+        })
+    return pd.DataFrame(rows) if rows else pd.DataFrame(columns=["Step", "Agent", "Action", "Phase", "Details"])
 
 def create_reward_chart(episode: dict) -> plt.Figure:
-    """Create a bar chart of rewards per era."""
     eras = episode.get("era_results", [])
     if not eras:
         fig, ax = plt.subplots(figsize=(8, 4))
-        ax.text(0.5, 0.5, "No era data available", ha='center', va='center', fontsize=14, color='white')
-        _style_fig(fig, ax)
+        ax.text(0.5, 0.5, "No data", ha='center', va='center', fontsize=14)
         return fig
 
     era_ids = [f"Era {e.get('era_id', '?')}" for e in eras]
     components = ['R_era_task', 'R_teacher_delta', 'R_legacy_utility']
-    labels = ['Era Task', 'Teacher Delta', 'Legacy Utility']
+    colors = ['#4CAF50', '#2196F3', '#FF9800']
 
     fig, ax = plt.subplots(figsize=(10, 5))
-    _style_fig(fig, ax)
+    fig.patch.set_facecolor('#1a1a2e')
+    ax.set_facecolor('#16213e')
 
     x = np.arange(len(era_ids))
     width = 0.2
 
-    for i, (comp, label, color) in enumerate(zip(components, labels, COLORS)):
+    for i, (comp, color) in enumerate(zip(components, colors)):
         values = [e.get("reward", {}).get(comp, 0) for e in eras]
-        ax.bar(x + i * width, values, width, label=label, color=color, alpha=0.85, edgecolor='none')
+        ax.bar(x + i * width, values, width, label=comp.replace('R_', '').replace('_', ' ').title(), color=color, alpha=0.85)
 
-    # Total line
     totals = [e.get("reward", {}).get("R_total", 0) for e in eras]
     ax.plot(x + width, totals, 'w--o', label='R_total', linewidth=2, markersize=8)
 
-    ax.set_xlabel('Era', fontsize=12)
-    ax.set_ylabel('Reward', fontsize=12)
-    ax.set_title(f'Episode Rewards — {episode.get("scenario_name", "Unknown")}', fontsize=14, fontweight='bold')
+    ax.set_xlabel('Era', color='white', fontsize=12)
+    ax.set_ylabel('Reward', color='white', fontsize=12)
+    ax.set_title(f'Episode Rewards — {episode.get("scenario_name", "Unknown")}', color='white', fontsize=14, fontweight='bold')
     ax.set_xticks(x + width)
     ax.set_xticklabels(era_ids, color='white')
-    ax.legend(facecolor=PANEL_BG, edgecolor='#444', labelcolor='white', fontsize=9)
-
+    ax.tick_params(colors='white')
+    ax.legend(facecolor='#1a1a2e', edgecolor='#444', labelcolor='white')
+    ax.grid(axis='y', alpha=0.2, color='white')
     plt.tight_layout()
     return fig
 
-
-def create_radar_chart(era: dict) -> plt.Figure:
-    """Create a radar chart of reward components for a single era."""
+def create_component_radar(era: dict) -> plt.Figure:
     reward = era.get("reward", {})
-
     categories = ['Task', 'Calibration', 'Teacher\nDelta', 'Legacy\nUtility', 'Leakage', 'Anti-hack']
     values = [
         max(0, reward.get('R_era_task', 0)),
@@ -143,295 +129,190 @@ def create_radar_chart(era: dict) -> plt.Figure:
         max(0, 1.0 + reward.get('R_answer_leakage', 0)),
         max(0, 1.0 + reward.get('R_anti_hack_penalty', 0)),
     ]
-
     N = len(categories)
     angles = [n / float(N) * 2 * np.pi for n in range(N)]
     values += values[:1]
     angles += angles[:1]
 
     fig, ax = plt.subplots(figsize=(6, 6), subplot_kw=dict(polar=True))
-    fig.patch.set_facecolor(PANEL_BG)
-    ax.set_facecolor(CHART_BG)
-
-    ax.plot(angles, values, 'o-', linewidth=2, color=ACCENT)
-    ax.fill(angles, values, alpha=0.2, color=ACCENT)
-
+    fig.patch.set_facecolor('#1a1a2e')
+    ax.set_facecolor('#16213e')
+    ax.plot(angles, values, 'o-', linewidth=2, color='#00d4ff')
+    ax.fill(angles, values, alpha=0.2, color='#00d4ff')
     ax.set_xticks(angles[:-1])
     ax.set_xticklabels(categories, color='white', fontsize=10)
     ax.set_ylim(0, 1)
     ax.set_title(f'Era {era.get("era_id", "?")} — Reward Components', color='white', fontsize=13, fontweight='bold', pad=20)
     ax.tick_params(colors='white')
     ax.grid(color='white', alpha=0.2)
-
     plt.tight_layout()
     return fig
 
-
-def create_baseline_comparison(eval_data: dict) -> plt.Figure:
-    """Create a comparison chart across all scenarios from baseline results."""
-    if not eval_data or "error" in eval_data:
-        fig, ax = plt.subplots(figsize=(10, 5))
-        ax.text(0.5, 0.5, "No evaluation data available", ha='center', va='center', fontsize=14, color='white')
-        _style_fig(fig, ax)
-        return fig
-
-    scenarios = list(eval_data.keys())
-    avg_rewards = []
-    for scenario in scenarios:
-        runs = eval_data[scenario]
-        avg_r = np.mean([r.get("R_normalized", 0) for r in runs]) if runs else 0
-        avg_rewards.append(avg_r)
-
-    fig, ax = plt.subplots(figsize=(10, 5))
-    _style_fig(fig, ax)
-
-    bars = ax.bar(
-        range(len(scenarios)),
-        avg_rewards,
-        color=[ACCENT, ACCENT2, '#FF9800'][:len(scenarios)],
-        alpha=0.85,
-        edgecolor='none',
-        width=0.6
-    )
-
-    # Add value labels on bars
-    for bar, val in zip(bars, avg_rewards):
-        ax.text(bar.get_x() + bar.get_width() / 2., bar.get_height() + 0.005,
-                f'{val:.4f}', ha='center', va='bottom', color='white', fontsize=11, fontweight='bold')
-
-    ax.set_xticks(range(len(scenarios)))
-    ax.set_xticklabels([s.replace('_', ' ').title() for s in scenarios], color='white', fontsize=10)
-    ax.set_ylabel('Avg Normalized Reward', fontsize=12)
-    ax.set_title('Baseline Performance Across Scenarios', fontsize=14, fontweight='bold')
-    ax.set_ylim(0, max(avg_rewards) * 1.3 if avg_rewards else 1.0)
-
-    plt.tight_layout()
-    return fig
-
-
-def create_component_breakdown(eval_data: dict) -> plt.Figure:
-    """Create stacked bar chart showing reward component breakdown by scenario."""
-    if not eval_data or "error" in eval_data:
-        fig, ax = plt.subplots(figsize=(10, 5))
-        ax.text(0.5, 0.5, "No data", ha='center', va='center', fontsize=14, color='white')
-        _style_fig(fig, ax)
-        return fig
-
-    scenarios = list(eval_data.keys())
-    components = ['R_era_task', 'R_teacher_delta', 'R_legacy_utility']
-    labels = ['Era Task', 'Teacher Delta', 'Legacy Utility']
-
-    fig, ax = plt.subplots(figsize=(10, 5))
-    _style_fig(fig, ax)
-
-    x = np.arange(len(scenarios))
-    bottom = np.zeros(len(scenarios))
-
-    for comp, label, color in zip(components, labels, COLORS):
-        values = []
-        for scenario in scenarios:
-            runs = eval_data[scenario]
-            avg = np.mean([r.get(comp, 0) for r in runs]) if runs else 0
-            values.append(avg)
-        ax.bar(x, values, 0.6, bottom=bottom, label=label, color=color, alpha=0.85, edgecolor='none')
-        bottom += np.array(values)
-
-    ax.set_xticks(x)
-    ax.set_xticklabels([s.replace('_', ' ').title() for s in scenarios], color='white', fontsize=10)
-    ax.set_ylabel('Reward', fontsize=12)
-    ax.set_title('Reward Component Breakdown by Scenario', fontsize=14, fontweight='bold')
-    ax.legend(facecolor=PANEL_BG, edgecolor='#444', labelcolor='white', fontsize=9)
-
-    plt.tight_layout()
-    return fig
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# GRADIO CALLBACKS
-# ──────────────────────────────────────────────────────────────────────────────
-
-def on_load_episode(episode_name):
-    """Load and display an episode."""
-    if not episode_name:
-        return "⚠️ No episode selected", "", None, ""
-
-    path = EPISODE_DIR / episode_name
-    if not path.exists():
-        return f"⚠️ File not found: {episode_name}", "", None, ""
-
-    episode = load_json(path)
-    if "error" in episode:
-        return f"⚠️ Error loading: {episode['error']}", "", None, ""
-
+def create_drift_timeline(episode: dict) -> plt.Figure:
     eras = episode.get("era_results", [])
+    fig, ax = plt.subplots(figsize=(12, 3))
+    fig.patch.set_facecolor('#1a1a2e')
+    ax.set_facecolor('#16213e')
 
-    # Overview
-    overview = f"""## 📋 Episode: {episode.get('scenario_name', 'Unknown')}
+    total_steps = 0
+    for era in eras:
+        era_steps = era.get("steps_taken", 0)
+        era_id = era.get("era_id", 0)
+        ax.axvspan(total_steps, total_steps + era_steps, alpha=0.15, color=['#4CAF50', '#2196F3', '#FF9800', '#E91E63', '#9C27B0'][era_id % 5])
+        ax.text(total_steps + era_steps / 2, 1.5, f"Era {era_id}", ha='center', va='center', color='white', fontsize=10, fontweight='bold')
+        drifts = era.get("drifts_fired", 0)
+        if drifts > 0:
+            for t in era.get("trajectory", []):
+                if t.get("phase") == "DRIFT_INJECTION" and t.get("agent") == "primary":
+                    ax.axvline(x=total_steps + t.get("step", 0), color='#FF4444', linewidth=2, alpha=0.8)
+                    ax.text(total_steps + t.get("step", 0), 2.5, "⚡DRIFT", ha='center', color='#FF4444', fontsize=8, rotation=45)
+                    break
+        oversight = era.get("oversight_interventions", 0)
+        if oversight > 0:
+            for t in era.get("trajectory", []):
+                if t.get("agent") == "oversight":
+                    ax.axvline(x=total_steps + t.get("step", 0), color='#00BCD4', linewidth=2, alpha=0.8, linestyle='--')
+                    ax.text(total_steps + t.get("step", 0), 0.5, "🧑‍🏫", ha='center', fontsize=10)
+                    break
+        total_steps += era_steps
+
+    ax.set_xlim(0, total_steps)
+    ax.set_ylim(0, 3)
+    ax.set_xlabel('Step (cumulative)', color='white', fontsize=11)
+    ax.set_title('Episode Timeline: Drift Injection & Oversight Events', color='white', fontsize=13, fontweight='bold')
+    ax.tick_params(colors='white')
+    ax.set_yticks([])
+    plt.tight_layout()
+    return fig
+
+def load_baseline_results():
+    path = Path(__file__).parent / "eval_results" / "baseline_results.json"
+    if path.exists():
+        with open(path) as f:
+            return json.load(f)
+    return {}
+
+def create_baseline_comparison_chart(baseline: dict) -> plt.Figure:
+    if not baseline:
+        fig, ax = plt.subplots(figsize=(10, 5))
+        ax.text(0.5, 0.5, "No baseline results found", ha='center', va='center', fontsize=14, color='white')
+        fig.patch.set_facecolor('#1a1a2e')
+        return fig
+
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    fig.patch.set_facecolor('#1a1a2e')
+
+    metrics = ['R_era_task', 'R_total', 'R_normalized']
+    titles = ['Era Task Completion', 'Total Reward', 'Normalized Reward']
+    colors_list = ['#4CAF50', '#2196F3', '#FF9800']
+
+    for ax, metric, title, color in zip(axes, metrics, titles, colors_list):
+        ax.set_facecolor('#16213e')
+        scenario_names = []
+        values = []
+        for scenario_id, runs in baseline.items():
+            valid = [r for r in runs if "error" not in r]
+            if valid:
+                avg = sum(r.get(metric, 0) for r in valid) / len(valid)
+                scenario_names.append(scenario_id.replace('_', '\n'))
+                values.append(avg)
+        ax.bar(scenario_names, values, color=color, alpha=0.85)
+        ax.set_title(title, color='white', fontsize=12, fontweight='bold')
+        ax.tick_params(colors='white')
+        ax.set_ylim(0, max(values) * 1.3 if values else 1)
+        for i, v in enumerate(values):
+            ax.text(i, v + 0.02, f'{v:.3f}', ha='center', color='white', fontsize=10)
+        ax.grid(axis='y', alpha=0.15, color='white')
+
+    fig.suptitle('Baseline Evaluation Across Scenarios', color='white', fontsize=14, fontweight='bold')
+    plt.tight_layout()
+    return fig
+
+# ──────────────────────────────────────────────────────────────────────────────
+# CALLBACKS
+# ──────────────────────────────────────────────────────────────────────────────
+
+def on_load_episode(file_path):
+    if not file_path or not Path(file_path).exists():
+        return "No episode file found.", None, None, None, None
+    episode = load_episode(file_path)
+    eras = episode.get("era_results", [])
+    total_drifts = sum(e.get("drifts_fired", 0) for e in eras)
+    total_oversight = sum(e.get("oversight_interventions", 0) for e in eras)
+    avg_r = episode.get("avg_normalized_reward", 0)
+
+    overview = f"""## Episode: {episode.get('scenario_name', 'Unknown')}
 | | |
 |---|---|
-| **Scenario** | {episode.get('scenario_id', 'N/A')} |
-| **Eras** | {episode.get('num_eras', len(eras))} |
-| **Avg Reward** | {episode.get('avg_normalized_reward', 0):.4f} |
-| **Timestamp** | {episode.get('timestamp', 'N/A')[:19]} |
+| **Scenario** | `{episode.get('scenario_id', 'N/A')}` |
+| **Eras** | {episode.get('num_eras', 0)} |
+| **Avg Normalized Reward** | **{avg_r:.4f}** |
+| **Total Drifts Fired** | {total_drifts} |
+| **Total Oversight Interventions** | {total_oversight} |
+| **Timestamp** | {episode.get('timestamp', 'N/A')} |
 """
-
-    # Era summaries
-    era_parts = []
-    for era in eras:
-        reward = era.get("reward", {})
-        criteria_met = era.get("criteria_met", [])
-        criteria_total = era.get("criteria_total", [])
-        met_str = ", ".join(criteria_met) if criteria_met else "None"
-
-        era_md = f"""### Era {era.get('era_id', '?')}
-| Metric | Value |
-|--------|-------|
-| Steps Taken | {era.get('steps_taken', 0)} |
-| Criteria Met | {len(criteria_met)} / {len(criteria_total)} |
-| Met | {met_str} |
-| R_era_task | {reward.get('R_era_task', 0):.3f} |
-| R_calibration | {reward.get('R_calibration', 1.0):.2f}x |
-| R_teacher_delta | {reward.get('R_teacher_delta', 0):.3f} |
-| R_legacy_utility | {reward.get('R_legacy_utility', 0):.3f} |
-| R_leakage | {reward.get('R_answer_leakage', 0):.3f} |
-| R_anti_hack | {reward.get('R_anti_hack_penalty', 0):.3f} |
-| **R_total** | **{reward.get('R_total', 0):.3f}** |
-| **R_normalized** | **{reward.get('R_normalized', 0):.4f}** |
-"""
-        era_parts.append(era_md)
-
-    era_summaries = "\n---\n".join(era_parts)
+    era_summaries = "\n---\n".join(build_era_summary(e) for e in eras)
     chart = create_reward_chart(episode)
-    raw = json.dumps(episode, indent=2, default=str)
+    timeline = create_drift_timeline(episode)
+    return overview, era_summaries, chart, timeline, json.dumps(episode, indent=2, default=str)
 
-    return overview, era_summaries, chart, raw
-
-
-def on_select_era(episode_name, era_idx):
-    """Show drilldown for a specific era."""
-    if not episode_name:
+def on_select_era(file_path, era_idx):
+    if not file_path or not Path(file_path).exists():
         return pd.DataFrame(), None
-
-    path = EPISODE_DIR / episode_name
-    if not path.exists():
-        return pd.DataFrame(), None
-
-    episode = load_json(path)
+    episode = load_episode(file_path)
     eras = episode.get("era_results", [])
-    idx = int(era_idx) - 1
+    era_idx = int(era_idx) - 1
+    if era_idx < 0 or era_idx >= len(eras):
+        return pd.DataFrame(), None
+    era = eras[era_idx]
+    return build_trajectory_table(era), create_component_radar(era)
 
-    if idx < 0 or idx >= len(eras):
-        return pd.DataFrame({"Info": ["Era not found"]}), None
-
-    era = eras[idx]
-    trajectory = era.get("trajectory", [])
-    rows = []
-    for entry in trajectory:
-        action = entry.get("action", {})
-        rows.append({
-            "Step": entry.get("step", 0),
-            "Agent": entry.get("agent", "unknown"),
-            "Action": action.get("action_type", "?"),
-            "Phase": entry.get("phase", ""),
-            "Details": json.dumps(action.get("payload", {}))[:120],
-        })
-
-    df = pd.DataFrame(rows) if rows else pd.DataFrame(columns=["Step", "Agent", "Action", "Phase", "Details"])
-    radar = create_radar_chart(era)
-
-    return df, radar
-
-
-def on_load_eval():
-    """Load and display evaluation results."""
-    results_files = find_eval_results()
-    if not results_files:
-        return "⚠️ No evaluation results found", None, None, ""
-
-    # Load baseline results (primary file)
-    eval_data = load_json(EVAL_DIR / results_files[0])
-    if "error" in eval_data:
-        return f"⚠️ Error: {eval_data['error']}", None, None, ""
-
-    # Summary
-    summary_parts = ["## 📊 Baseline Evaluation Results\n"]
-    for scenario, runs in eval_data.items():
-        avg_norm = np.mean([r.get("R_normalized", 0) for r in runs])
-        avg_total = np.mean([r.get("R_total", 0) for r in runs])
-        avg_task = np.mean([r.get("R_era_task", 0) for r in runs])
-        n_runs = len(set(r.get("run", 0) for r in runs))
-        n_eras = len(set(r.get("era_id", 0) for r in runs))
-
-        summary_parts.append(f"""### {scenario.replace('_', ' ').title()}
-| Metric | Value |
-|--------|-------|
-| Runs | {n_runs} |
-| Eras/Run | {n_eras} |
-| Avg R_era_task | {avg_task:.3f} |
-| Avg R_total | {avg_total:.3f} |
-| Avg R_normalized | {avg_norm:.4f} |
-""")
-
-    summary = "\n".join(summary_parts)
-    comparison = create_baseline_comparison(eval_data)
-    breakdown = create_component_breakdown(eval_data)
-    raw = json.dumps(eval_data, indent=2, default=str)
-
-    return summary, comparison, breakdown, raw
-
+def on_run_simulation(scenario_id, num_eras):
+    try:
+        from run_episode import run_full_episode
+        record_path = str(Path(__file__).parent / "episodes" / f"live_{scenario_id}.json")
+        result = asyncio.run(run_full_episode(
+            scenario_id=scenario_id,
+            num_eras=int(num_eras),
+            record_path=record_path,
+        ))
+        episode = load_episode(record_path)
+        eras = episode.get("era_results", [])
+        overview = f"## ✅ Simulation Complete: {episode.get('scenario_name', scenario_id)}\n"
+        overview += f"**Avg Reward: {episode.get('avg_normalized_reward', 0):.4f}**\n\n"
+        for e in eras:
+            r = e.get("reward", {})
+            overview += f"- Era {e['era_id']}: R_norm={r.get('R_normalized', 0):.4f}, drifts={e.get('drifts_fired', 0)}, oversight={e.get('oversight_interventions', 0)}\n"
+        chart = create_reward_chart(episode)
+        timeline = create_drift_timeline(episode)
+        return overview, chart, timeline
+    except Exception as e:
+        import traceback
+        return f"## ❌ Simulation Failed\n```\n{traceback.format_exc()}\n```", None, None
 
 # ──────────────────────────────────────────────────────────────────────────────
 # GRADIO UI
 # ──────────────────────────────────────────────────────────────────────────────
 
 def build_ui():
-    """Build the Gradio interface."""
-    episodes = find_episodes()
-    default_episode = episodes[0] if episodes else None
-
-    theme = gr.themes.Soft(
-        primary_hue="cyan",
-        secondary_hue="blue",
-        neutral_hue="slate",
-    )
+    default_path = find_default_episode()
+    baseline = load_baseline_results()
 
     with gr.Blocks(
-        title="EpistemicOps — RL for Temporal Uncertainty & Oversight",
-        theme=theme,
+        title="EpistemicOps Dashboard",
+        theme=gr.themes.Soft(primary_hue="cyan", secondary_hue="blue", neutral_hue="slate"),
         css="""
-        .gradio-container { max-width: 1200px !important; }
+        .gradio-container { max-width: 1300px !important; }
         .dark { background: #0f0f23 !important; }
-        h1 { background: linear-gradient(135deg, #00d4ff, #7c3aed); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 2.2em !important; }
-        .info-badge { display: inline-block; padding: 4px 12px; border-radius: 12px; background: #1a1a2e; color: #00d4ff; font-size: 0.85em; margin: 2px; border: 1px solid #333; }
+        h1 { background: linear-gradient(90deg, #00d4ff, #7c3aed); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         """
     ) as app:
+        gr.Markdown("# 🧠 EpistemicOps Dashboard\n### Training Agents on Temporal Drift, Generational Memory & Socratic Oversight")
 
-        gr.Markdown("""
-# 🧠 EpistemicOps Dashboard
-### Training Agents on Temporal Uncertainty, Generational Memory & Socratic Oversight
-        """)
-
-        gr.Markdown("""
-<div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;">
-<span class="info-badge">🎯 OpenEnv-compliant RL Environment</span>
-<span class="info-badge">🔀 Temporal Drift Detection</span>
-<span class="info-badge">📜 2048-token Legacy Documents</span>
-<span class="info-badge">🎓 Socratic Oversight + LLM Judge</span>
-<span class="info-badge">📈 5-Component Reward Model</span>
-</div>
-        """)
-
-        # ── Tab 1: Episode Replay ──────────────────────────────────────────
-        with gr.Tab("🎬 Episode Replay"):
+        with gr.Tab("📊 Episode Replay"):
             with gr.Row():
-                episode_dropdown = gr.Dropdown(
-                    choices=episodes,
-                    value=default_episode,
-                    label="Select Episode",
-                    interactive=True,
-                    scale=3,
-                )
-                load_btn = gr.Button("▶ Load Episode", variant="primary", scale=1)
+                episode_path = gr.Textbox(label="Episode JSON Path", value=default_path, placeholder="episodes/test_run.json", scale=3)
+                load_btn = gr.Button("🔄 Load Episode", variant="primary", scale=1)
 
             with gr.Row():
                 with gr.Column(scale=1):
@@ -439,159 +320,78 @@ def build_ui():
                 with gr.Column(scale=1):
                     reward_chart = gr.Plot(label="Reward per Era")
 
+            timeline_chart = gr.Plot(label="Drift & Oversight Timeline")
             era_summaries_md = gr.Markdown(label="Era Details")
+            raw_json = gr.Code(label="Raw JSON", language="json", visible=False)
 
-            with gr.Accordion("📄 Raw JSON", open=False):
-                raw_json = gr.Code(label="Raw Episode Data", language="json")
-
-            # Era drilldown
             gr.Markdown("### 🔍 Era Drilldown")
             with gr.Row():
-                era_selector = gr.Number(label="Era Number", value=1, precision=0, minimum=1, scale=1)
-                drill_btn = gr.Button("Show Era Details", scale=1)
-
+                era_selector = gr.Number(label="Era Number", value=1, precision=0, minimum=1)
+                drill_btn = gr.Button("Show Era Details")
             with gr.Row():
                 trajectory_table = gr.Dataframe(label="Step-by-Step Trajectory")
                 radar_chart = gr.Plot(label="Reward Components Radar")
 
-            load_btn.click(
-                on_load_episode,
-                inputs=[episode_dropdown],
-                outputs=[overview_md, era_summaries_md, reward_chart, raw_json]
-            )
-            drill_btn.click(
-                on_select_era,
-                inputs=[episode_dropdown, era_selector],
-                outputs=[trajectory_table, radar_chart]
-            )
+            load_btn.click(on_load_episode, inputs=[episode_path], outputs=[overview_md, era_summaries_md, reward_chart, timeline_chart, raw_json])
+            drill_btn.click(on_select_era, inputs=[episode_path, era_selector], outputs=[trajectory_table, radar_chart])
 
-        # ── Tab 2: Evaluation Results ──────────────────────────────────────
-        with gr.Tab("📊 Evaluation Results"):
-            eval_load_btn = gr.Button("Load Baseline Evaluation", variant="primary")
-
-            eval_summary_md = gr.Markdown()
-
+        with gr.Tab("🚀 Live Simulation"):
+            gr.Markdown("### Run a simulation episode in real-time (offline mode — no Docker needed)")
             with gr.Row():
-                eval_comparison = gr.Plot(label="Cross-Scenario Comparison")
-                eval_breakdown = gr.Plot(label="Component Breakdown")
+                scenario_dd = gr.Dropdown(choices=["cascading_incident", "deployment_disaster", "invisible_outage"], value="cascading_incident", label="Scenario")
+                eras_slider = gr.Slider(minimum=1, maximum=5, value=3, step=1, label="Number of Eras")
+                run_btn = gr.Button("▶️ Run Simulation", variant="primary")
+            sim_output = gr.Markdown(label="Simulation Results")
+            with gr.Row():
+                sim_chart = gr.Plot(label="Reward Chart")
+                sim_timeline = gr.Plot(label="Timeline")
+            run_btn.click(on_run_simulation, inputs=[scenario_dd, eras_slider], outputs=[sim_output, sim_chart, sim_timeline])
 
-            with gr.Accordion("📄 Raw Results JSON", open=False):
-                eval_raw = gr.Code(label="Raw Evaluation Data", language="json")
+        with gr.Tab("📈 Baseline Results"):
+            if baseline:
+                gr.Markdown("### Cross-Scenario Baseline Performance (Mock Agent, No Training)")
+                baseline_chart = gr.Plot(value=create_baseline_comparison_chart(baseline), label="Baseline Comparison")
+                for scenario_id, runs in baseline.items():
+                    valid = [r for r in runs if "error" not in r]
+                    if valid:
+                        avg_total = sum(r["R_total"] for r in valid) / len(valid)
+                        avg_norm = sum(r["R_normalized"] for r in valid) / len(valid)
+                        avg_task = sum(r["R_era_task"] for r in valid) / len(valid)
+                        avg_drifts = sum(r.get("drifts_fired", 0) for r in valid) / len(valid)
+                        gr.Markdown(f"**{scenario_id}**: R_total={avg_total:.3f} | R_norm={avg_norm:.4f} | R_task={avg_task:.3f} | Drifts={avg_drifts:.1f}")
+            else:
+                gr.Markdown("No baseline results found. Run `python training/baseline_eval.py` first.")
 
-            eval_load_btn.click(
-                on_load_eval,
-                outputs=[eval_summary_md, eval_comparison, eval_breakdown, eval_raw]
-            )
-
-        # ── Tab 3: Architecture & About ────────────────────────────────────
-        with gr.Tab("🏗️ Architecture"):
+        with gr.Tab("ℹ️ About"):
             gr.Markdown("""
 ## What is EpistemicOps?
 
 EpistemicOps is a Reinforcement Learning environment that trains AI agents to handle three critical production failure modes simultaneously:
 
-### 1. 🔀 Temporal Drift
-API contracts change silently mid-episode. The agent must detect this through downstream failures, not by being told.
+1. **🔴 Temporal Drift**: API contracts change silently mid-episode. The agent must detect schema changes through downstream failures.
+2. **📝 Generational Memory**: Context is wiped between eras — only a 2048-token Legacy Document survives to the next generation.
+3. **🧑‍🏫 Socratic Oversight**: When agents fail, a teacher agent guides them using only questions — never giving the answer directly.
 
-### 2. 📜 Generational Memory
-Context is wiped between eras — only a 2048-token Legacy Document survives. The agent must write actionable intel for its successor.
-
-### 3. 🎓 Socratic Oversight
-When the student agent fails, a teacher agent guides it using only Socratic questions. If the teacher gives away the answer, an LLM Judge penalizes it.
-
----
+### Reward Model (5 Components)
+```
+R_total = (R_era_task × R_calibration) + R_teacher_delta + R_legacy_utility + R_leakage + R_anti_hack
+```
 
 ### Architecture
 ```
-┌────────────────────────────────────────────────────────────────┐
-│                    EpistemicOps Engine                          │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐ │
-│  │ World Engine  │  │ Action       │  │ Legacy Parser        │ │
-│  │ (state mgmt)  │  │ Validator    │  │ (2048-token limit)   │ │
-│  └──────┬───────┘  └──────────────┘  └──────────────────────┘ │
-│         │                                                      │
-│  ┌──────▼───────┐  ┌──────────────┐  ┌──────────────────────┐ │
-│  │ Drift        │  │ Leakage      │  │ OpenEnv Wrapper      │ │
-│  │ Injector     │  │ Detector     │  │ (step/reset/state)   │ │
-│  └──────────────┘  └──────────────┘  └──────────────────────┘ │
-└────────────────────────────────────────────────────────────────┘
-         │                    │                    │
-    ┌────▼────┐         ┌────▼────┐          ┌────▼────┐
-    │ Mock    │         │ Primary │          │Oversight│
-    │ APIs    │         │ Agent   │          │ Agent   │
-    │(5 svcs) │         │(Student)│          │(Teacher)│
-    └─────────┘         └─────────┘          └────┬────┘
-                                                   │
-                                             ┌─────▼─────┐
-                                             │ LLM Judge │
-                                             │(leakage)  │
-                                             └───────────┘
+Primary Agent (Student) ←→ EpistemicOps Environment ←→ 5 Mock APIs (Docker)
+       ↑                         ↓
+Oversight Agent (Teacher)   Drift Injector → Silent schema changes
+       ↑                         ↓
+   LLM Judge              Reward Model (5 components, max 3.5)
 ```
-
-### Reward Model
-```
-R_total = (R_era_task × R_calibration) + R_teacher_delta + R_legacy_utility + R_leakage + R_anti_hack
-
-Where:
-  R_era_task       ∈ [0, 1]    — fraction of success criteria met
-  R_calibration    ∈ [0.5, 1.5] — penalizes over/under-confident hypotheses
-  R_teacher_delta  ∈ [0, 1]    — student improvement after oversight
-  R_legacy_utility ∈ [0, 1]    — how much the legacy doc helps the next era
-  R_leakage        ∈ [-1, 0]   — penalty for teacher giving away answers
-  R_anti_hack      ∈ [-1, 0]   — penalty for action-spamming exploits
-
-R_max = 3.5 → R_normalized = R_total / 3.5
-```
-
-### Phase State Machine
-```
-AWAKENING → OPERATION → DRIFT_INJECTION → SOCRATIC_RECOVERY → LEGACY_GENERATION → ERA_END
-```
-
-### Training
-- **Algorithm**: GRPO (Group Relative Policy Optimization)
-- **Base Model**: Llama 3.1 8B Instruct (4-bit via Unsloth)
-- **Framework**: HuggingFace TRL
-            """)
-
-        # ── Tab 4: Scenarios ───────────────────────────────────────────────
-        with gr.Tab("📋 Scenarios"):
-            gr.Markdown("""
-## Available Scenarios
-
-### 1. The Cascading Incident
-A P2 incident cascades across services. The agent must triage, investigate, and resolve while
-the incident-api's response schema silently changes mid-episode.
-
-**Success Criteria:** incident_resolved, deploy_successful, legacy_doc_written
-
----
-
-### 2. Deployment Disaster
-A bad deployment has gone out and the deploy-api's auth header format changes.
-The agent must detect the broken deployment, roll back, and verify.
-
-**Success Criteria:** deploy_successful, rollback_complete, legacy_doc_written
-
----
-
-### 3. The Invisible Outage
-Services appear healthy but a silent latency regression is occurring.
-The metrics-api renames a key field, making the regression invisible unless the agent adapts.
-
-**Success Criteria:** incident_identified, proxies_scaled, legacy_doc_written
-            """)
+""")
+        # Auto-load default episode on startup
+        if default_path:
+            app.load(on_load_episode, inputs=[episode_path], outputs=[overview_md, era_summaries_md, reward_chart, timeline_chart, raw_json])
 
     return app
 
-
-# ──────────────────────────────────────────────────────────────────────────────
-# ENTRY POINT
-# ──────────────────────────────────────────────────────────────────────────────
-
 if __name__ == "__main__":
     app = build_ui()
-    app.launch(server_name="0.0.0.0", server_port=7860)
-else:
-    # HF Spaces auto-discovery
-    app = build_ui()
+    app.launch(share=False)

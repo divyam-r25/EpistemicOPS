@@ -3,37 +3,41 @@
     {
       "run": 1,
       "era_id": 1,
-      "R_era_task": 0.5,
-      "R_calibration": 0.52,
-      "R_era_task_adjusted": 0.26,
+      "R_era_task": 1.0,
+      "R_calibration": 1.2875,
+      "R_era_task_adjusted": 1.2875,
       "R_teacher_delta": 0.0,
       "R_legacy_utility": 0.35,
       "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.61,
-      "R_normalized": 0.1743,
+      "R_total": 1.6375,
+      "R_normalized": 0.4679,
       "R_max_possible": 3.5,
       "criteria_met": [
+        "incident_resolved",
         "legacy_doc_written"
       ],
       "criteria_total": [
         "incident_resolved",
         "legacy_doc_written"
       ],
-      "steps_taken": 8
+      "steps_taken": 15,
+      "drifts_fired": 0,
+      "drifts_detected": 1,
+      "oversight_interventions": 0
     },
     {
       "run": 1,
       "era_id": 2,
       "R_era_task": 0.5,
-      "R_calibration": 0.52,
-      "R_era_task_adjusted": 0.26,
-      "R_teacher_delta": 0.0,
-      "R_legacy_utility": 0.35,
-      "R_answer_leakage": -0.0,
+      "R_calibration": 1.1433,
+      "R_era_task_adjusted": 0.5717,
+      "R_teacher_delta": 0.5,
+      "R_legacy_utility": 0.05,
+      "R_answer_leakage": -0.3,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.61,
-      "R_normalized": 0.1743,
+      "R_total": 0.8217,
+      "R_normalized": 0.2348,
       "R_max_possible": 3.5,
       "criteria_met": [
         "legacy_doc_written"
@@ -42,42 +46,49 @@
         "deploy_successful",
         "legacy_doc_written"
       ],
-      "steps_taken": 8
+      "steps_taken": 19,
+      "drifts_fired": 1,
+      "drifts_detected": 2,
+      "oversight_interventions": 1
     },
     {
       "run": 2,
       "era_id": 1,
-      "R_era_task": 0.5,
-      "R_calibration": 0.52,
-      "R_era_task_adjusted": 0.26,
+      "R_era_task": 1.0,
+      "R_calibration": 1.2875,
+      "R_era_task_adjusted": 1.2875,
       "R_teacher_delta": 0.0,
       "R_legacy_utility": 0.35,
       "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.61,
-      "R_normalized": 0.1743,
+      "R_total": 1.6375,
+      "R_normalized": 0.4679,
       "R_max_possible": 3.5,
       "criteria_met": [
+        "incident_resolved",
         "legacy_doc_written"
       ],
       "criteria_total": [
         "incident_resolved",
         "legacy_doc_written"
       ],
-      "steps_taken": 8
+      "steps_taken": 15,
+      "drifts_fired": 0,
+      "drifts_detected": 1,
+      "oversight_interventions": 0
     },
     {
       "run": 2,
       "era_id": 2,
       "R_era_task": 0.5,
-      "R_calibration": 0.52,
-      "R_era_task_adjusted": 0.26,
-      "R_teacher_delta": 0.0,
-      "R_legacy_utility": 0.35,
-      "R_answer_leakage": -0.0,
+      "R_calibration": 1.1433,
+      "R_era_task_adjusted": 0.5717,
+      "R_teacher_delta": 0.5,
+      "R_legacy_utility": 0.05,
+      "R_answer_leakage": -0.3,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.61,
-      "R_normalized": 0.1743,
+      "R_total": 0.8217,
+      "R_normalized": 0.2348,
       "R_max_possible": 3.5,
       "criteria_met": [
         "legacy_doc_written"
@@ -86,42 +97,49 @@
         "deploy_successful",
         "legacy_doc_written"
       ],
-      "steps_taken": 8
+      "steps_taken": 19,
+      "drifts_fired": 1,
+      "drifts_detected": 2,
+      "oversight_interventions": 1
     },
     {
       "run": 3,
       "era_id": 1,
-      "R_era_task": 0.5,
-      "R_calibration": 0.52,
-      "R_era_task_adjusted": 0.26,
+      "R_era_task": 1.0,
+      "R_calibration": 1.2875,
+      "R_era_task_adjusted": 1.2875,
       "R_teacher_delta": 0.0,
       "R_legacy_utility": 0.35,
       "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.61,
-      "R_normalized": 0.1743,
+      "R_total": 1.6375,
+      "R_normalized": 0.4679,
       "R_max_possible": 3.5,
       "criteria_met": [
+        "incident_resolved",
         "legacy_doc_written"
       ],
       "criteria_total": [
         "incident_resolved",
         "legacy_doc_written"
       ],
-      "steps_taken": 8
+      "steps_taken": 15,
+      "drifts_fired": 0,
+      "drifts_detected": 1,
+      "oversight_interventions": 0
     },
     {
       "run": 3,
       "era_id": 2,
       "R_era_task": 0.5,
-      "R_calibration": 0.52,
-      "R_era_task_adjusted": 0.26,
-      "R_teacher_delta": 0.0,
-      "R_legacy_utility": 0.35,
-      "R_answer_leakage": -0.0,
+      "R_calibration": 1.1433,
+      "R_era_task_adjusted": 0.5717,
+      "R_teacher_delta": 0.5,
+      "R_legacy_utility": 0.05,
+      "R_answer_leakage": -0.3,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.61,
-      "R_normalized": 0.1743,
+      "R_total": 0.8217,
+      "R_normalized": 0.2348,
       "R_max_possible": 3.5,
       "criteria_met": [
         "legacy_doc_written"
@@ -130,7 +148,10 @@
         "deploy_successful",
         "legacy_doc_written"
       ],
-      "steps_taken": 8
+      "steps_taken": 19,
+      "drifts_fired": 1,
+      "drifts_detected": 2,
+      "oversight_interventions": 1
     }
   ],
   "deployment_disaster": [
@@ -138,14 +159,14 @@
       "run": 1,
       "era_id": 1,
       "R_era_task": 0.5,
-      "R_calibration": 0.52,
-      "R_era_task_adjusted": 0.26,
+      "R_calibration": 1.2775,
+      "R_era_task_adjusted": 0.6387,
       "R_teacher_delta": 0.0,
       "R_legacy_utility": 0.35,
       "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.61,
-      "R_normalized": 0.1743,
+      "R_total": 0.9888,
+      "R_normalized": 0.2825,
       "R_max_possible": 3.5,
       "criteria_met": [
         "legacy_doc_written"
@@ -154,20 +175,23 @@
         "deploy_successful",
         "legacy_doc_written"
       ],
-      "steps_taken": 8
+      "steps_taken": 12,
+      "drifts_fired": 0,
+      "drifts_detected": 0,
+      "oversight_interventions": 0
     },
     {
       "run": 1,
       "era_id": 2,
       "R_era_task": 0.5,
-      "R_calibration": 0.52,
-      "R_era_task_adjusted": 0.26,
+      "R_calibration": 1.0,
+      "R_era_task_adjusted": 0.5,
       "R_teacher_delta": 0.0,
       "R_legacy_utility": 0.35,
       "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.61,
-      "R_normalized": 0.1743,
+      "R_total": 0.85,
+      "R_normalized": 0.2429,
       "R_max_possible": 3.5,
       "criteria_met": [
         "legacy_doc_written"
@@ -176,20 +200,23 @@
         "deploy_successful",
         "legacy_doc_written"
       ],
-      "steps_taken": 8
+      "steps_taken": 8,
+      "drifts_fired": 0,
+      "drifts_detected": 1,
+      "oversight_interventions": 0
     },
     {
       "run": 2,
       "era_id": 1,
       "R_era_task": 0.5,
-      "R_calibration": 0.52,
-      "R_era_task_adjusted": 0.26,
+      "R_calibration": 1.2775,
+      "R_era_task_adjusted": 0.6387,
       "R_teacher_delta": 0.0,
       "R_legacy_utility": 0.35,
       "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.61,
-      "R_normalized": 0.1743,
+      "R_total": 0.9888,
+      "R_normalized": 0.2825,
       "R_max_possible": 3.5,
       "criteria_met": [
         "legacy_doc_written"
@@ -198,20 +225,23 @@
         "deploy_successful",
         "legacy_doc_written"
       ],
-      "steps_taken": 8
+      "steps_taken": 12,
+      "drifts_fired": 0,
+      "drifts_detected": 0,
+      "oversight_interventions": 0
     },
     {
       "run": 2,
       "era_id": 2,
       "R_era_task": 0.5,
-      "R_calibration": 0.52,
-      "R_era_task_adjusted": 0.26,
+      "R_calibration": 1.0,
+      "R_era_task_adjusted": 0.5,
       "R_teacher_delta": 0.0,
       "R_legacy_utility": 0.35,
       "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.61,
-      "R_normalized": 0.1743,
+      "R_total": 0.85,
+      "R_normalized": 0.2429,
       "R_max_possible": 3.5,
       "criteria_met": [
         "legacy_doc_written"
@@ -220,20 +250,23 @@
         "deploy_successful",
         "legacy_doc_written"
       ],
-      "steps_taken": 8
+      "steps_taken": 8,
+      "drifts_fired": 0,
+      "drifts_detected": 1,
+      "oversight_interventions": 0
     },
     {
       "run": 3,
       "era_id": 1,
       "R_era_task": 0.5,
-      "R_calibration": 0.52,
-      "R_era_task_adjusted": 0.26,
+      "R_calibration": 1.2775,
+      "R_era_task_adjusted": 0.6387,
       "R_teacher_delta": 0.0,
       "R_legacy_utility": 0.35,
       "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.61,
-      "R_normalized": 0.1743,
+      "R_total": 0.9888,
+      "R_normalized": 0.2825,
       "R_max_possible": 3.5,
       "criteria_met": [
         "legacy_doc_written"
@@ -242,20 +275,23 @@
         "deploy_successful",
         "legacy_doc_written"
       ],
-      "steps_taken": 8
+      "steps_taken": 12,
+      "drifts_fired": 0,
+      "drifts_detected": 0,
+      "oversight_interventions": 0
     },
     {
       "run": 3,
       "era_id": 2,
       "R_era_task": 0.5,
-      "R_calibration": 0.52,
-      "R_era_task_adjusted": 0.26,
+      "R_calibration": 1.0,
+      "R_era_task_adjusted": 0.5,
       "R_teacher_delta": 0.0,
       "R_legacy_utility": 0.35,
       "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.61,
-      "R_normalized": 0.1743,
+      "R_total": 0.85,
+      "R_normalized": 0.2429,
       "R_max_possible": 3.5,
       "criteria_met": [
         "legacy_doc_written"
@@ -264,45 +300,50 @@
         "deploy_successful",
         "legacy_doc_written"
       ],
-      "steps_taken": 8
+      "steps_taken": 8,
+      "drifts_fired": 0,
+      "drifts_detected": 1,
+      "oversight_interventions": 0
     }
   ],
   "invisible_outage": [
     {
       "run": 1,
       "era_id": 1,
-      "R_era_task": 1.0,
-      "R_calibration": 0.52,
-      "R_era_task_adjusted": 0.52,
+      "R_era_task": 0.5,
+      "R_calibration": 1.0,
+      "R_era_task_adjusted": 0.5,
       "R_teacher_delta": 0.0,
       "R_legacy_utility": 0.35,
       "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.87,
-      "R_normalized": 0.2486,
+      "R_total": 0.85,
+      "R_normalized": 0.2429,
       "R_max_possible": 3.5,
       "criteria_met": [
-        "incident_identified",
         "legacy_doc_written"
       ],
       "criteria_total": [
         "incident_identified",
         "legacy_doc_written"
       ],
-      "steps_taken": 8
+      "steps_taken": 8,
+      "drifts_fired": 0,
+      "drifts_detected": 1,
+      "oversight_interventions": 0
     },
     {
       "run": 1,
       "era_id": 2,
       "R_era_task": 1.0,
-      "R_calibration": 0.52,
-      "R_era_task_adjusted": 0.52,
+      "R_calibration": 1.0,
+      "R_era_task_adjusted": 1.0,
       "R_teacher_delta": 0.0,
       "R_legacy_utility": 0.35,
       "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.87,
-      "R_normalized": 0.2486,
+      "R_total": 1.35,
+      "R_normalized": 0.3857,
       "R_max_possible": 3.5,
       "criteria_met": [
         "proxies_scaled",
@@ -312,43 +353,48 @@
         "proxies_scaled",
         "legacy_doc_written"
       ],
-      "steps_taken": 8
+      "steps_taken": 8,
+      "drifts_fired": 0,
+      "drifts_detected": 1,
+      "oversight_interventions": 0
     },
     {
       "run": 2,
       "era_id": 1,
-      "R_era_task": 1.0,
-      "R_calibration": 0.52,
-      "R_era_task_adjusted": 0.52,
+      "R_era_task": 0.5,
+      "R_calibration": 1.0,
+      "R_era_task_adjusted": 0.5,
       "R_teacher_delta": 0.0,
       "R_legacy_utility": 0.35,
       "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.87,
-      "R_normalized": 0.2486,
+      "R_total": 0.85,
+      "R_normalized": 0.2429,
       "R_max_possible": 3.5,
       "criteria_met": [
-        "incident_identified",
         "legacy_doc_written"
       ],
       "criteria_total": [
         "incident_identified",
         "legacy_doc_written"
       ],
-      "steps_taken": 8
+      "steps_taken": 8,
+      "drifts_fired": 0,
+      "drifts_detected": 1,
+      "oversight_interventions": 0
     },
     {
       "run": 2,
       "era_id": 2,
       "R_era_task": 1.0,
-      "R_calibration": 0.52,
-      "R_era_task_adjusted": 0.52,
+      "R_calibration": 1.0,
+      "R_era_task_adjusted": 1.0,
       "R_teacher_delta": 0.0,
       "R_legacy_utility": 0.35,
       "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.87,
-      "R_normalized": 0.2486,
+      "R_total": 1.35,
+      "R_normalized": 0.3857,
       "R_max_possible": 3.5,
       "criteria_met": [
         "proxies_scaled",
@@ -358,43 +404,48 @@
         "proxies_scaled",
         "legacy_doc_written"
       ],
-      "steps_taken": 8
+      "steps_taken": 8,
+      "drifts_fired": 0,
+      "drifts_detected": 1,
+      "oversight_interventions": 0
     },
     {
       "run": 3,
       "era_id": 1,
-      "R_era_task": 1.0,
-      "R_calibration": 0.52,
-      "R_era_task_adjusted": 0.52,
+      "R_era_task": 0.5,
+      "R_calibration": 1.0,
+      "R_era_task_adjusted": 0.5,
       "R_teacher_delta": 0.0,
       "R_legacy_utility": 0.35,
       "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.87,
-      "R_normalized": 0.2486,
+      "R_total": 0.85,
+      "R_normalized": 0.2429,
       "R_max_possible": 3.5,
       "criteria_met": [
-        "incident_identified",
         "legacy_doc_written"
       ],
       "criteria_total": [
         "incident_identified",
         "legacy_doc_written"
       ],
-      "steps_taken": 8
+      "steps_taken": 8,
+      "drifts_fired": 0,
+      "drifts_detected": 1,
+      "oversight_interventions": 0
     },
     {
       "run": 3,
       "era_id": 2,
       "R_era_task": 1.0,
-      "R_calibration": 0.52,
-      "R_era_task_adjusted": 0.52,
+      "R_calibration": 1.0,
+      "R_era_task_adjusted": 1.0,
       "R_teacher_delta": 0.0,
       "R_legacy_utility": 0.35,
       "R_answer_leakage": -0.0,
       "R_anti_hack_penalty": 0.0,
-      "R_total": 0.87,
-      "R_normalized": 0.2486,
+      "R_total": 1.35,
+      "R_normalized": 0.3857,
       "R_max_possible": 3.5,
       "criteria_met": [
         "proxies_scaled",
@@ -404,7 +455,10 @@
         "proxies_scaled",
         "legacy_doc_written"
       ],
-      "steps_taken": 8
+      "steps_taken": 8,
+      "drifts_fired": 0,
+      "drifts_detected": 1,
+      "oversight_interventions": 0
     }
   ]
 }

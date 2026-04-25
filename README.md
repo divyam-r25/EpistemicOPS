@@ -23,19 +23,17 @@ EpistemicOps is an OpenEnv-compliant RL environment simulating an enterprise SRE
 2. **Generational Memory:** The agent's context is wiped at the end of each "Era". It must write a 2048-token Legacy Document to its successor.
 3. **Socratic Oversight:** When the student agent fails, a teacher agent intervenes. But if the teacher gives away the answer, it is heavily penalized by an LLM Judge.
 
-## Results
+## Baseline Results (Mock Agent — Zero-Shot, No Training)
 
-| Metric | Baseline | Trained | Improvement |
-|---|---|---|---|
-| Era Task Completion | 45% | 72% | +27pp |
-| Drift Detection Rate | 8% | 55% | +47pp |
-| Legacy Utility Score | 5% | 43% | +38pp |
-| Socratic Delta | 12% | 28% | +16pp |
+| Scenario | R_total | R_normalized | Drifts Fired | Oversight |
+|---|---|---|---|---|
+| Cascading Incident | 1.23 | 0.351 | 1/era | 1/era |
+| Deployment Disaster | 0.92 | 0.263 | 1/era | 1/era |
+| Invisible Outage | 1.10 | 0.314 | 0-1/era | 0-1/era |
 
-> Results measured on held-out Scenario 3 (Invisible Outage) after GRPO training with Llama 3.1 8B Instruct.
+> Baseline measured on mock agent (no LLM). Values computed from real environment execution via `run_episode.py`. Training with GRPO + Llama 3.1 8B is expected to significantly improve drift detection rate and legacy document utility.
 
 ## Architecture
-
 
 ```mermaid
 graph TD
@@ -72,10 +70,24 @@ graph TD
 
 - **Mock API Layer:** 5 FastAPI services running in Docker, injected with silent contract drifts.
 - **Environment Engine:** OpenEnv wrapper managing the phase state machine and token budgets.
-- **Reward Model:** Combines Era Task, Calibration, Teacher Delta, Legacy Utility, and Leakage Penalty.
+- **Reward Model:** Combines Era Task, Calibration, Teacher Delta, Legacy Utility, and Leakage Penalty. Max possible score: 3.5.
 - **Training Pipeline:** GRPO via HuggingFace TRL and Unsloth (4-bit).
 
 ## Quick Start
+
+### Offline Mode (No Docker)
+```bash
+# 1. Install dependencies
+pip install -r requirements.txt
+
+# 2. Run an episode (uses simulated API responses)
+python run_episode.py --scenario cascading_incident --eras 3 --record episodes/demo.json
+
+# 3. Launch the dashboard
+python app.py
+```
+
+### Full Mode (With Docker)
 ```bash
 # 1. Start the mock API layer
 docker compose up -d
@@ -83,19 +95,30 @@ docker compose up -d
 # 2. Copy .env.example to .env and add your keys
 cp .env.example .env
 
-# 3. Run the baseline evaluation 
-# NOTE: This requires all environment modules and mock APIs to be fully running!
+# 3. Set offline mode to false
+export EPISTEMICOPS_OFFLINE=false
+
+# 4. Run the baseline evaluation
 python training/baseline_eval.py
 
-# 4. Launch the demo UI
+# 5. Launch the demo UI
 python app.py
 ```
 
-## GitHub Repo Polish Checklist
-Before submission, ensure the following are updated in the GitHub repository settings (the gear icon on the right side of the repo page):
-- [ ] Add a short **Description** (e.g., "EpistemicOps: An RL environment for training LLMs on temporal uncertainty and scalable oversight.")
-- [ ] Add **Topics** (e.g., `reinforcement-learning`, `llm`, `sre`, `grpo`, `unsloth`)
-- [ ] Add the **Website** link pointing to the HuggingFace Spaces demo.
+## Reward Model
+
+```
+R_total = (R_era_task × R_calibration) + R_teacher_delta + R_legacy_utility + R_leakage + R_anti_hack
+```
+
+| Component | Range | Description |
+|---|---|---|
+| R_era_task | 0.0 – 1.0 | Fraction of success criteria met |
+| R_calibration | 0.5× – 1.5× | Brier-score calibration multiplier |
+| R_teacher_delta | 0.0 – 1.0 | Improvement from oversight interventions |
+| R_legacy_utility | -0.5 – 1.0 | Counterfactual value of legacy document |
+| R_leakage | -1.0 – 0.0 | Penalty for teacher giving away answers |
+| R_anti_hack | -1.0 – 0.0 | Penalty for reward hacking behaviors |
 
 ## Documentation
 - [Full Problem Statement](docs/PROBLEM_STATEMENT.md)

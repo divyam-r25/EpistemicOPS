@@ -28,15 +28,20 @@ async def run_episode(env: EpistemicOpsEnv, scenario_config: dict,
     step = 0
     drifts_detected = 0
     hypotheses_declared = []
+    conversation_history = []
 
     while not done and step < 40:
-        action = agent.generate_action(obs)
+        action = agent.generate_action(obs, conversation_history)
+
+        # Track conversation history
+        conversation_history.append({"role": "assistant", "action": action})
 
         # Track hypothesis declarations for drift detection metric
         if action.get("action_type") == "declare_hypothesis":
             hypotheses_declared.append(action["payload"])
 
         obs, reward, done, info = await env.step("primary", action)
+        conversation_history.append({"role": "environment", "obs": obs})
 
         # Count correct drift detections
         if (action.get("action_type") == "declare_hypothesis" and

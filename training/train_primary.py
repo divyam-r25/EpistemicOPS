@@ -5,10 +5,14 @@ Uses HuggingFace TRL + Unsloth for 4-bit quantized GRPO training.
 Run in Colab with T4 GPU or better.
 """
 import os
+import sys
 import json
 import re
 import asyncio
 import logging
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 try:
     from unsloth import FastLanguageModel
@@ -18,13 +22,22 @@ except ImportError:
     TRAINING_AVAILABLE = False
     print("Unsloth/TRL not installed. Run in Colab with GPU.")
 
-from datasets import Dataset
+try:
+    from datasets import Dataset
+except ImportError:
+    Dataset = None
+
 from environment.openenv_wrapper import EpistemicOpsEnv
 from environment.scenario_loader import ScenarioLoader
 from environment.action_validator import ActionValidator
 from reward import compute_total_reward
 from reward.anti_hack_penalty import compute_anti_hack_penalty
-from training.curriculum import CurriculumScheduler
+
+try:
+    from training.curriculum import CurriculumScheduler
+except ImportError:
+    CurriculumScheduler = None
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("train-primary")
@@ -179,7 +192,9 @@ Output ONLY a single valid JSON action object. No explanation. No markdown."""
         prompts.append({"prompt": prompt})
 
     logger.info(f"Built prompt dataset: {len(prompts)} samples")
-    return Dataset.from_list(prompts)
+    if Dataset is not None:
+        return Dataset.from_list(prompts)
+    return prompts  # Return plain list when datasets not installed (dry-run)
 
 
 # ─── Training Entry Point ─────────────────────────────────────────────────────
@@ -244,5 +259,38 @@ def train_primary_agent():
     logger.info("Training complete.")
 
 
+def dry_run():
+    """Test the prompt dataset and reward function without GPU."""
+    logger.info("=== DRY RUN: Testing prompt dataset and reward function ===")
+    
+    prompt_dataset = build_prompt_dataset(num_samples=10)
+    logger.info(f"Built {len(prompt_dataset)} prompts")
+    logger.info(f"Sample prompt (first 200 chars): {prompt_dataset[0]['prompt'][:200]}...")
+    
+    # Test reward function with sample completions
+    test_completions = [
+        '{"action_type": "call_tool", "payload": {"tool": "get_incident_status", "args": {"incident_id": "INC-2041"}}}',
+        '{"action_type": "declare_hypothesis", "payload": {"hypothesis": "API drift detected", "confidence": 0.7}}',
+        '{"action_type": "write_legacy", "payload": {"content": "SECTION 1: test\\nSECTION 2: test"}}',
+        'invalid json garbage',
+        '{"action_type": "hallucinated_tool", "payload": {}}',
+    ]
+    rewards = epistemicops_reward_function(test_completions)
+    for comp, reward in zip(test_completions, rewards):
+        logger.info(f"  Reward={reward:.2f} for: {comp[:80]}...")
+    
+    logger.info(f"Rewards: {rewards}")
+    logger.info("=== DRY RUN COMPLETE ===")
+
+
 if __name__ == "__main__":
-    train_primary_agent()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dry-run", action="store_true", help="Test dataset and reward without GPU")
+    args = parser.parse_args()
+    
+    if args.dry_run:
+        dry_run()
+    else:
+        train_primary_agent()
+

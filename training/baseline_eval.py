@@ -7,6 +7,7 @@ No hardcoded values — all rewards computed from real game state.
 import asyncio
 import json
 import sys
+import random
 from pathlib import Path
 import logging
 
@@ -33,6 +34,10 @@ async def run_baseline_evaluation():
         scenario_results = []
         for run_idx in range(NUM_RUNS):
             logger.info(f"  Run {run_idx + 1}/{NUM_RUNS}")
+            
+            # Seed with run-dependent value for reproducible but varied results
+            random.seed(42 + run_idx * 17 + hash(scenario_id) % 100)
+            
             try:
                 episode = await run_full_episode(
                     scenario_id=scenario_id,
@@ -58,9 +63,14 @@ async def run_baseline_evaluation():
                         "criteria_met": era_result.get("criteria_met", []),
                         "criteria_total": era_result.get("criteria_total", []),
                         "steps_taken": era_result.get("steps_taken", 0),
+                        "drifts_fired": era_result.get("drifts_fired", 0),
+                        "drifts_detected": era_result.get("drifts_detected", 0),
+                        "oversight_interventions": era_result.get("oversight_interventions", 0),
                     })
             except Exception as e:
                 logger.error(f"  Run {run_idx + 1} failed: {e}")
+                import traceback
+                traceback.print_exc()
                 scenario_results.append({"run": run_idx + 1, "error": str(e)})
         
         results[scenario_id] = scenario_results
@@ -81,8 +91,11 @@ async def run_baseline_evaluation():
             avg_total = sum(r["R_total"] for r in valid_runs) / len(valid_runs)
             avg_norm = sum(r["R_normalized"] for r in valid_runs) / len(valid_runs)
             avg_task = sum(r["R_era_task"] for r in valid_runs) / len(valid_runs)
+            avg_drifts = sum(r.get("drifts_fired", 0) for r in valid_runs) / len(valid_runs)
+            avg_oversight = sum(r.get("oversight_interventions", 0) for r in valid_runs) / len(valid_runs)
             print(f"  {scenario_id}:")
             print(f"    Avg R_total: {avg_total:.4f}  |  Avg R_norm: {avg_norm:.4f}  |  Avg R_task: {avg_task:.4f}")
+            print(f"    Avg Drifts: {avg_drifts:.1f}  |  Avg Oversight: {avg_oversight:.1f}")
             print(f"    Runs: {len(valid_runs)} valid / {len(runs)} total")
         else:
             print(f"  {scenario_id}: ALL RUNS FAILED")

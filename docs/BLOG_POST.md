@@ -20,12 +20,11 @@ When it fails, a second agent—the **Oversight Agent**—intervenes. But it can
 At the end of an Era, the Primary Agent writes a 2048-token "Legacy Document" to its successor. Then its memory is wiped. The next Era starts with only that document.
 
 ## Results
-We fine-tuned Llama 3.1 8B using GRPO (via HuggingFace TRL and Unsloth). 
-The target metrics post-training are:
-- **Drift Detection:** Rise from 8% (baseline) to **55%**
-- **Legacy Utility:** Legacy Documents improve successor's performance by **43%**
-- **Oversight Impact:** Primary Agent improves recovery by **28%** per intervention.
+Our baseline (zero-shot mock agent, no fine-tuning) shows:
+- **Drift Detection:** Mock agents detect ~50% of injected drifts via structured hypothesis-testing
+- **Legacy Utility:** Legacy Documents provide measurable performance lift to successor agents (+0.35 reward)
+- **Oversight Impact:** Socratic interventions improve task recovery by 0.5 teacher_delta when triggered
 
-EpistemicOps proves that temporal trust and pedagogical transfer can be trained together. Because in the end, they are the same cognitive act.
+The GRPO training pipeline (Llama 3.1 8B via Unsloth) is ready to run on Colab with T4 GPU. We expect significant improvements in drift detection rate and calibration quality post-training.
 
 [Explore the codebase](https://github.com/divyam-r25/EpistemicOPS) | [Try the Demo](https://huggingface.co/spaces/divyam-r25/EpistemicOps)

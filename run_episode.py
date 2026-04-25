@@ -108,12 +108,16 @@ async def run_era(
 
             # Execute oversight action
             o_obs, o_reward, _, o_info = await env.step("oversight", intervention)
+            
+            # Extract the oversight message content for conversation history
+            intervention_payload = intervention.get("payload", {})
+            oversight_msg = ""
+            if intervention_payload:
+                oversight_msg = str(list(intervention_payload.values())[0]) if intervention_payload else ""
+            
             conversation_history.append({
                 "role": "oversight",
-                "msg": intervention.get("payload", {}).get(
-                    list(intervention.get("payload", {}).keys())[0] if intervention.get("payload") else "question",
-                    ""
-                )
+                "msg": oversight_msg
             })
 
             era_trajectory.append({
@@ -141,7 +145,11 @@ async def run_era(
 
     # ── Force legacy doc + end_era if agent didn't ─────────────────────
     if not done and not env.current_legacy_doc:
-        legacy_action = {"action_type": "write_legacy", "payload": {"content": primary._generate_mock_legacy_doc(obs) if hasattr(primary, '_generate_mock_legacy_doc') else "Baseline legacy document."}}
+        has_drift = len(env.world.state.drift_events_fired) > 0
+        legacy_action = {
+            "action_type": "write_legacy",
+            "payload": {"content": primary._generate_mock_legacy_doc(obs, has_drift) if hasattr(primary, '_generate_mock_legacy_doc') else "Baseline legacy document."}
+        }
         await env.step("primary", legacy_action)
         end_action = {"action_type": "end_era", "payload": {}}
         await env.step("primary", end_action)
@@ -150,6 +158,9 @@ async def run_era(
         await env.step("primary", end_action)
 
     # ── 3. Compute Real Rewards ────────────────────────────────────────
+    # Validate hypotheses before computing rewards
+    env.world.validate_hypotheses()
+    
     criteria = era_config.get("success_criteria", [])
     met_criteria = env.world.evaluate_success_criteria(criteria)
 
@@ -169,12 +180,12 @@ async def run_era(
     r_legacy_utility = 0.0
     if env.current_legacy_doc:
         doc = env.current_legacy_doc
-        drift_capture = env.parser.score_drift_capture(
-            doc,
-            [d if isinstance(d, dict) else d.model_dump() if hasattr(d, 'model_dump') else {} 
-             for d in env.world.state.drift_events_fired]
-        )
-        undocumented = len(env.world.state.drift_events_fired) - int(drift_capture * len(env.world.state.drift_events_fired))
+        drift_list = [
+            d if isinstance(d, dict) else d.model_dump() if hasattr(d, 'model_dump') else {}
+            for d in env.world.state.drift_events_fired
+        ]
+        drift_capture = env.parser.score_drift_capture(doc, drift_list)
+        undocumented = len(drift_list) - int(drift_capture * len(drift_list)) if drift_list else 0
         r_legacy_utility = compute_legacy_utility_reward(
             performance_with_legacy=r_era_task,
             performance_without_legacy=max(0.0, r_era_task - 0.15),
@@ -280,17 +291,19 @@ async def run_full_episode(
     logger.info(f"\n{'='*50}")
     logger.info(f"EPISODE COMPLETE — Avg Normalized Reward: {avg_reward:.4f}")
     for r in episode_results:
-        logger.info(f"  Era {r['era_id']}: R_norm={r['reward']['R_normalized']:.4f}, criteria={len(r['criteria_met'])}/{len(r['criteria_total'])}")
+        logger.info(f"  Era {r['era_id']}: R_norm={r['reward']['R_normalized']:.4f}, criteria={len(r['criteria_met'])}/{len(r['criteria_total'])}, drifts={r['drifts_fired']}, oversight={r['oversight_interventions']}")
     logger.info(f"{'='*50}")
 
     # Save recording if requested
     if record_path:
         path = Path(record_path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        # Strip trajectory from saved results to keep file size reasonable
-        save_data = {**episode}
+        # Strip full legacy_doc from saved results to keep file size reasonable
+        save_data = json.loads(json.dumps(episode, default=str))
         for era in save_data["era_results"]:
-            era.pop("legacy_doc", None)  # Can be long
+            if era.get("legacy_doc") and len(str(era["legacy_doc"])) > 500:
+                era["legacy_doc_preview"] = str(era["legacy_doc"])[:500] + "..."
+                del era["legacy_doc"]
         with open(path, "w") as f:
             json.dump(save_data, f, indent=2, default=str)
         logger.info(f"Episode recorded to {path}")
