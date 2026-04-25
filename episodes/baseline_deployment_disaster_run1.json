@@ -2,7 +2,7 @@
   "scenario_id": "deployment_disaster",
   "scenario_name": "The Deployment Disaster",
   "num_eras": 3,
-  "timestamp": "2026-04-25T06:41:23.858259+00:00",
+  "timestamp": "2026-04-25T14:00:55.437823+00:00",
   "avg_normalized_reward": 0.2905,
   "era_results": [
     {

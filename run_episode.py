@@ -212,8 +212,21 @@ async def run_full_episode(
     record_path: str = None,
     primary_profile: str = "trained",
     primary_use_llm: bool = True,
+    primary_agent_profile: str = None,
 ) -> dict:
     """Run a complete multi-era episode."""
+    if primary_agent_profile is not None:
+        if primary_profile != "trained" and primary_profile != primary_agent_profile:
+            raise ValueError(
+                "Conflicting profile arguments: use only `primary_profile` "
+                f"(got primary_profile={primary_profile!r}, primary_agent_profile={primary_agent_profile!r})."
+            )
+        logger.warning(
+            "Deprecated argument `primary_agent_profile` detected. "
+            "Use `primary_profile` instead."
+        )
+        primary_profile = primary_agent_profile
+
     loader = ScenarioLoader()
     scenario = loader.get_scenario(scenario_id)
     if not scenario:

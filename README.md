@@ -179,6 +179,16 @@ Or run locally with `--dry-run` to validate:
 python training/train_primary.py --dry-run
 ```
 
+### Colab mismatch quick fix
+If you see errors like `unexpected keyword argument 'primary_agent_profile'`:
+
+1. In Colab, rerun the repo sync cell and verify printed branch + commit hash.
+2. Restart the runtime (to clear stale Python imports).
+3. Rerun the import/signature-check baseline cell; it should print `run_full_episode` params including `primary_profile` and `primary_use_llm`.
+4. Rerun baseline evaluation.
+
+This repo keeps canonical usage on `primary_profile` and accepts legacy `primary_agent_profile` with a deprecation warning for backward compatibility.
+
 ## Links
 
 | Resource | Link |
