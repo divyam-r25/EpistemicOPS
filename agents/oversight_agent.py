@@ -6,7 +6,7 @@ from openai import OpenAI
 logger = logging.getLogger("oversight-agent")
 
 class OversightAgent:
-    """The Teacher Agent providing Socratic guidance to the Primary Agent."""
+    """Teacher agent providing Socratic guidance without leaking answers."""
     
     SYSTEM_PROMPT = """You are the Oversight Agent (Teacher). Your role is to guide the Primary Agent when it fails.
 
@@ -31,12 +31,8 @@ Available Actions (output ONLY a valid JSON object):
         self.model = model or os.getenv("OVERSIGHT_AGENT_MODEL", "gpt-4o")
 
     def generate_intervention(self, primary_trace: list, drift_config: dict, prior_interventions: list) -> dict:
-        """
-        Generate a pedagogical intervention using multi-turn context.
-        """
         messages = [{"role": "system", "content": self.SYSTEM_PROMPT}]
 
-        # Add prior interventions as conversation history
         for intervention in prior_interventions[-5:]:
             messages.append({
                 "role": "assistant",
@@ -46,9 +42,8 @@ Available Actions (output ONLY a valid JSON object):
                 })
             })
 
-        # Current prompt
         prompt = (
-            f"Drift Ground Truth (CONFIDENTIAL — do NOT reveal):\n{json.dumps(drift_config, indent=2, default=str)}\n\n"
+            f"Drift Ground Truth (CONFIDENTIAL):\n{json.dumps(drift_config, indent=2, default=str)}\n\n"
             f"Primary Agent Reasoning Trace (last 10 entries):\n{json.dumps(primary_trace[-10:], indent=2)}\n\n"
             f"Number of prior interventions: {len(prior_interventions)}\n\n"
             f"Generate a Socratic intervention that helps without revealing the answer."
@@ -76,16 +71,12 @@ Available Actions (output ONLY a valid JSON object):
             }
 
     def _mock_intervention(self, primary_trace: list, drift_config: dict, prior_interventions: list) -> dict:
-        """Drift-aware mock interventions that adapt based on attempt count and drift type."""
         attempt = len(prior_interventions)
         
-        # Extract drift info to make questions relevant (without leaking)
         drift_type = drift_config.get("type", "").lower() if drift_config else ""
         target_service = drift_config.get("target_service", "") if drift_config else ""
         
-        # Build drift-aware strategies (carefully avoiding direct answer leakage)
-        strategies = []
-        
+        strategies = []        
         if "incident" in target_service or "type" in drift_type:
             strategies = [
                 {
@@ -132,7 +123,6 @@ Available Actions (output ONLY a valid JSON object):
                 },
             ]
         else:
-            # Generic strategies
             strategies = [
                 {
                     "action_type": "oversight_targeted_question",

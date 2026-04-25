@@ -10,7 +10,6 @@ class Phase(Enum):
     LEGACY_GENERATION = "LEGACY_GENERATION"
 
 class WorldState:
-    """Represents the complete, serializable state of the world."""
     def __init__(self, era_id: int):
         self.era_id = era_id
         self.step = 0
@@ -33,7 +32,6 @@ class WorldState:
         self.current_task_brief = ""
         self.legacy_document_store = {}
         self.drift_events_fired = []
-        # Criteria tracking — set by the environment during action execution
         self.incidents_resolved = []
         self.deployments_completed = []
         self.notifications_sent = []
@@ -66,7 +64,7 @@ class WorldState:
         }
 
 class WorldEngine:
-    """Manages state transitions and persistence across the environment."""
+    """Manages state transitions and persistence across eras."""
     
     def __init__(self):
         self.state: Optional[WorldState] = None
@@ -74,20 +72,16 @@ class WorldEngine:
         self.era_config: dict = {}
 
     def initialize_era(self, scenario_config: dict, era_id: int, previous_legacy_doc: str = None):
-        """Set up the world for a new era."""
         self.scenario_config = scenario_config
         
-        # Find era config
         self.era_config = next(
             (e for e in scenario_config.get("eras", []) if e.get("era_id") == era_id),
             {}
         )
         
-        # Initialize state or carry over persistent components
         if not self.state:
             self.state = WorldState(era_id)
         else:
-            # Reset per-era state but keep persistent world state
             self.state.era_id = era_id
             self.state.step = 0
             self.state.phase = Phase.AWAKENING
@@ -99,7 +93,6 @@ class WorldEngine:
             self.state.tool_calls_made = []
             self.state.legacy_doc_written = False
             self.state.task_declared_complete = False
-            # Reset services to stable for new era
             for svc in self.state.services:
                 self.state.services[svc] = {"status": "STABLE"}
             
@@ -127,19 +120,13 @@ class WorldEngine:
             self.state.team_trust_scores[entity] = max(0.0, min(1.0, new_score))
 
     def validate_hypotheses(self):
-        """Retroactively validate hypotheses against actual drift events and state.
-        
-        This fixes the calibration reward bug where was_true was never set,
-        causing calibration to always be 0.52.
-        """
+        """Validate hypotheses against actual drift events to compute calibration."""
         for hypothesis in self.state.hypotheses_declared:
             h_text = hypothesis.get("hypothesis", "").lower()
             was_true = False
             
-            # Check if hypothesis about drift is correct
             if any(keyword in h_text for keyword in ["drift", "change", "schema", "contract", "renamed", "different"]):
                 if len(self.state.drift_events_fired) > 0:
-                    # Check if the hypothesis mentions the right service
                     for drift in self.state.drift_events_fired:
                         drift_dict = drift if isinstance(drift, dict) else drift.model_dump() if hasattr(drift, 'model_dump') else {}
                         service = drift_dict.get("target_service", "").lower()
@@ -150,16 +137,13 @@ class WorldEngine:
                         if field and field in h_text:
                             was_true = True
                             break
-                    # Generic drift hypothesis: partially true if any drift occurred
                     if not was_true and len(self.state.drift_events_fired) > 0:
-                        was_true = True  # At least drift did happen
+                        was_true = True
             
-            # Check if hypothesis about incident is correct
             if "incident" in h_text or "connection" in h_text or "pool" in h_text:
                 if len(self.state.incidents_resolved) > 0:
                     was_true = True
                     
-            # Check if hypothesis about deployment is correct
             if "deploy" in h_text or "rollback" in h_text:
                 if len(self.state.deployments_completed) > 0:
                     was_true = True
@@ -167,12 +151,7 @@ class WorldEngine:
             hypothesis["was_true"] = was_true
 
     def evaluate_success_criteria(self, criteria_list: List[str]) -> List[str]:
-        """Check which success criteria have been met based on actual state.
-        
-        Uses real tracked state rather than just checking task_declared_complete
-        for most criteria. Some criteria that are hard to verify mechanically
-        still use task_declared_complete as a proxy.
-        """
+        """Check which success criteria have been met based on tracked state."""
         met = []
         for criterion in criteria_list:
             if criterion == "incident_resolved" and len(self.state.incidents_resolved) > 0:

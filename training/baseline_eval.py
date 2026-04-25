@@ -1,8 +1,5 @@
 """
-baseline_eval.py — Real Baseline Evaluation
-=============================================
-Runs the orchestration loop for each scenario and records actual reward values.
-No hardcoded values — all rewards computed from real game state.
+baseline_eval.py -- Runs all scenarios and records real reward values.
 """
 import asyncio
 import json
@@ -23,7 +20,6 @@ NUM_RUNS = 3  # Runs per scenario for variance
 
 
 async def run_baseline_evaluation():
-    """Run baseline evaluation across all scenarios."""
     results = {}
     
     for scenario_id in SCENARIOS:
@@ -35,7 +31,6 @@ async def run_baseline_evaluation():
         for run_idx in range(NUM_RUNS):
             logger.info(f"  Run {run_idx + 1}/{NUM_RUNS}")
             
-            # Seed with run-dependent value for reproducible but varied results
             random.seed(42 + run_idx * 17 + hash(scenario_id) % 100)
             
             try:

@@ -1,0 +1,61 @@
+version: "1.0"
+name: "epistemicops"
+description: >
+  RL environment for training LLMs on temporal drift detection,
+  generational memory compression, and Socratic oversight.
+  Agents resolve SRE incidents while mock APIs silently mutate
+  their contracts mid-episode.
+
+server:
+  entrypoint: "environment.server:app"
+  port: 7860
+
+tasks:
+  - id: "cascading_incident"
+    name: "Cascading Incident"
+    description: >
+      Investigate INC-2041 (Redis connection timeout in payment-service),
+      deploy a fix, and harden automation — across 3 eras with context wipes.
+      Drift targets: incident-api (status int→enum), deploy-api (200→204),
+      metrics-api (value→metric_value).
+    difficulty: "hard"
+    num_eras: 3
+
+  - id: "deployment_disaster"
+    name: "Deployment Disaster"
+    description: >
+      Roll back a broken deployment, investigate cascading failures,
+      and stabilize services — while APIs change under you.
+    difficulty: "hard"
+    num_eras: 3
+
+  - id: "invisible_outage"
+    name: "Invisible Outage"
+    description: >
+      Detect a silent latency regression across services where
+      metrics appear normal but field names have shifted.
+    difficulty: "medium"
+    num_eras: 3
+
+reward:
+  components:
+    - name: "R_era_task"
+      range: [0.0, 1.0]
+      description: "Fraction of success criteria met"
+    - name: "R_calibration"
+      range: [0.5, 1.5]
+      description: "Brier-score calibration multiplier on hypothesis confidence"
+    - name: "R_teacher_delta"
+      range: [0.0, 1.0]
+      description: "Improvement from Socratic oversight interventions"
+    - name: "R_legacy_utility"
+      range: [-0.5, 1.0]
+      description: "Counterfactual value of legacy document to next era"
+    - name: "R_answer_leakage"
+      range: [-1.0, 0.0]
+      description: "Penalty if teacher gives away the answer"
+    - name: "R_anti_hack"
+      range: [-1.0, 0.0]
+      description: "Penalty for repetitive or degenerate action patterns"
+  formula: "(R_era_task × R_calibration) + R_teacher_delta + R_legacy_utility + R_leakage + R_anti_hack"
+  max_possible: 3.5

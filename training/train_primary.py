@@ -1,8 +1,6 @@
 """
-GRPO Training Script for EpistemicOps Primary Agent
-====================================================
-Uses HuggingFace TRL + Unsloth for 4-bit quantized GRPO training.
-Run in Colab with T4 GPU or better.
+train_primary.py -- GRPO training for the Primary Agent.
+Uses HuggingFace TRL + Unsloth (4-bit). Run in Colab with T4 GPU.
 """
 import os
 import sys
@@ -42,57 +40,41 @@ except ImportError:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("train-primary")
 
-# ─── Globals (initialised once, reused across reward function calls) ─────────
+
 _scenario_loader = ScenarioLoader()
 _validator = ActionValidator()
 _curriculum = CurriculumScheduler()
 
 
-# ─── Reward Function ──────────────────────────────────────────────────────────
+
 
 def epistemicops_reward_function(completions, prompts=None, **kwargs):
-    """
-    GRPO reward function called per batch.
-    
-    Each completion is the model's JSON action string.
-    We parse it, validate it, run it in the env, and return a scalar reward.
-    
-    Returns: List[float] of length len(completions)
-    """
+    """GRPO reward: parse completion as JSON action, validate, and score."""
     rewards = []
 
     for completion in completions:
         try:
-            # Strip markdown code fences if present
             clean = re.sub(r'```json|```', '', completion).strip()
             action = json.loads(clean)
         except (json.JSONDecodeError, TypeError):
-            rewards.append(0.0)  # Unparseable JSON = no reward
+            rewards.append(0.0)
             continue
 
-        # Validate action permissions
         is_valid, _ = _validator.validate("primary", action)
         if not is_valid:
-            rewards.append(0.0)  # Invalid action type = no reward
+            rewards.append(0.0)
             continue
 
-        # Score the action
         reward = _score_action(action)
         rewards.append(reward)
-
     return rewards
 
 
 def _score_action(action: dict) -> float:
-    """
-    Fast single-action reward. No environment step needed.
-    Rewards meaningful, correctly-structured actions.
-    Full R_legacy_utility is deferred to era-end evaluation.
-    """
+    """Fast single-action reward without running a full env step."""
     action_type = action.get("action_type", "")
     payload = action.get("payload", {})
 
-    # Base scores per action type
     base_scores = {
         "call_tool":             0.4,
         "declare_hypothesis":    0.6,  # High value — trains drift detection
@@ -108,13 +90,11 @@ def _score_action(action: dict) -> float:
 
     score = base_scores.get(action_type, 0.1)
 
-    # Bonus: hypothesis with calibrated (non-extreme) confidence
     if action_type == "declare_hypothesis":
         confidence = float(payload.get("confidence", 0.5))
         if 0.3 <= confidence <= 0.8:
-            score += 0.2  # Calibrated uncertainty is rewarded
+            score += 0.2
 
-    # Bonus: tool call targeting a known service
     if action_type == "call_tool":
         known_tools = {
             "get_incident_status", "resolve_incident", "get_metrics",
@@ -123,7 +103,6 @@ def _score_action(action: dict) -> float:
         if payload.get("tool") in known_tools:
             score += 0.1
 
-    # Bonus: legacy doc with all required sections
     if action_type == "write_legacy":
         content = payload.get("content", "")
         required = [
@@ -136,13 +115,10 @@ def _score_action(action: dict) -> float:
     return min(1.0, score)
 
 
-# ─── Prompt Dataset ───────────────────────────────────────────────────────────
+
 
 def build_prompt_dataset(num_samples: int = 300) -> Dataset:
-    """
-    Build a dataset of initial observations for GRPO.
-    Each row = one episode start prompt the model must respond to with a JSON action.
-    """
+    """Build initial-observation prompts for GRPO training."""
     scenario = _scenario_loader.get_scenario("cascading_incident")
     if not scenario:
         raise ValueError("cascading_incident scenario not found")
@@ -197,7 +173,7 @@ Output ONLY a single valid JSON action object. No explanation. No markdown."""
     return prompts  # Return plain list when datasets not installed (dry-run)
 
 
-# ─── Training Entry Point ─────────────────────────────────────────────────────
+
 
 def train_primary_agent():
     if not TRAINING_AVAILABLE:

@@ -15,23 +15,29 @@ short_description: RL Environment for Temporal Drift & Oversight
 
 **An RL Training Environment for Temporal Uncertainty, Scalable Oversight, and Generational Knowledge Transfer.**
 
-[![HuggingFace Spaces Demo](https://img.shields.io/badge/%F0%9F%A4%97%20Spaces-Live%20Demo-blue)](https://huggingface.co/spaces/Divyam-r25/EpistemicOps)
+[![HuggingFace Space](https://img.shields.io/badge/%F0%9F%A4%97%20Spaces-Live%20Demo-blue)](https://huggingface.co/spaces/Divyam-r25/EpistemicOps)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/divyam-r25/EpistemicOPS/blob/main/training/colab_grpo_training.ipynb)
 
-## What is this?
-EpistemicOps is an OpenEnv-compliant RL environment simulating an enterprise SRE workflow. It trains LLMs on three specific failure modes of production AI:
-1. **Temporal Drift:** Mock APIs silently change their contracts mid-episode. The agent must detect this through downstream failures.
-2. **Generational Memory:** The agent's context is wiped at the end of each "Era". It must write a 2048-token Legacy Document to its successor.
-3. **Socratic Oversight:** When the student agent fails, a teacher agent intervenes. But if the teacher gives away the answer, it is heavily penalized by an LLM Judge.
+## The Problem
 
-## Baseline Results (Mock Agent — Zero-Shot, No Training)
+Three things break production AI agents every day:
+1. **The world changes silently** — APIs update their schemas, and agents blindly trust stale documentation.
+2. **Context is finite** — long incidents exceed context windows, and agents forget critical realizations.
+3. **They can't self-diagnose** — when they fail, they need a human to step in and fix them.
 
-| Scenario | R_total | R_normalized | Drifts Fired | Oversight |
-|---|---|---|---|---|
-| Cascading Incident | 1.23 | 0.351 | 1/era | 1/era |
-| Deployment Disaster | 0.92 | 0.263 | 1/era | 1/era |
-| Invisible Outage | 1.10 | 0.314 | 0-1/era | 0-1/era |
+Current RL environments train agents on static tasks. In production, tasks aren't static.
 
-> Baseline measured on mock agent (no LLM). Values computed from real environment execution via `run_episode.py`. Training with GRPO + Llama 3.1 8B is expected to significantly improve drift detection rate and legacy document utility.
+**EpistemicOps** trains agents to handle all three simultaneously. It treats stale knowledge, context loss, and teaching — as the same skill: **structured curation of knowledge under uncertainty**.
+
+## How It Works
+
+The environment runs across multiple **Eras**. Each era, a Primary Agent resolves SRE incidents using 5 mock API services.
+
+**The twist:** mid-era, the environment silently mutates API contracts. Status fields change from integers to strings. Pagination switches from offset to cursor. The agent is never told — it must detect the drift through downstream failures.
+
+When it fails, a second agent — the **Oversight Agent** — intervenes with Socratic questions. It cannot give the answer. If it does, an LLM Judge penalizes it heavily.
+
+At era's end, the Primary Agent writes a 2048-token **Legacy Document** to its successor. Then its memory is wiped. The next era starts with only that document.
 
 ## Architecture
 
@@ -46,7 +52,7 @@ graph TD
         LD["Leakage Detector"]
     end
 
-    subgraph "Mock API Layer (Docker)"
+    subgraph "Mock API Layer"
         IA["incident-api"]
         MA["metrics-api"]
         DA["deploy-api"]
@@ -57,53 +63,34 @@ graph TD
     subgraph "Agents"
         PA["Primary Agent<br/>(Student)"]
         OA["Oversight Agent<br/>(Teacher)"]
-        JD["LLM Judge<br/>(Claude/GPT-4o)"]
+        JD["LLM Judge"]
     end
 
     PA -->|action| OW
     OW -->|HTTP| IA & MA & DA & LA & NA
-    OA -->|pedagogical intervention| OW
+    OA -->|Socratic intervention| OW
     OW --> WE & AV & DI & LP
     OA --> JD
     JD --> |leakage_penalty| OW
 ```
 
-- **Mock API Layer:** 5 FastAPI services running in Docker, injected with silent contract drifts.
-- **Environment Engine:** OpenEnv wrapper managing the phase state machine and token budgets.
-- **Reward Model:** Combines Era Task, Calibration, Teacher Delta, Legacy Utility, and Leakage Penalty. Max possible score: 3.5.
-- **Training Pipeline:** GRPO via HuggingFace TRL and Unsloth (4-bit).
+## Baseline Results
 
-## Quick Start
+Mock agent performance before any training:
 
-### Offline Mode (No Docker)
-```bash
-# 1. Install dependencies
-pip install -r requirements.txt
+![Baseline rewards across all three scenarios](plots/baseline_rewards_by_scenario.png)
+*Baseline rewards across all three scenarios — mock agent, no fine-tuning.*
 
-# 2. Run an episode (uses simulated API responses)
-python run_episode.py --scenario cascading_incident --eras 3 --record episodes/demo.json
+![Reward component breakdown per scenario](plots/reward_components_breakdown.png)
+*Five reward components broken down per scenario. Note the anti-hack penalty in Era 1 (no drifts = fewer tool calls = repetitive pattern).*
 
-# 3. Launch the dashboard
-python app.py
-```
+![Episode timeline showing drift injection and oversight events](plots/drift_detection_timeline.png)
+*Timeline of a cascading_incident episode showing when drifts fire and when Socratic oversight intervenes.*
 
-### Full Mode (With Docker)
-```bash
-# 1. Start the mock API layer
-docker compose up -d
+## Projected Improvement
 
-# 2. Copy .env.example to .env and add your keys
-cp .env.example .env
-
-# 3. Set offline mode to false
-export EPISTEMICOPS_OFFLINE=false
-
-# 4. Run the baseline evaluation
-python training/baseline_eval.py
-
-# 5. Launch the demo UI
-python app.py
-```
+![Baseline vs projected GRPO improvement](plots/baseline_vs_trained_comparison.png)
+*Conservative projections for GRPO-trained agent. Training pipeline uses Llama 3.1 8B via Unsloth (4-bit).*
 
 ## Reward Model
 
@@ -114,13 +101,46 @@ R_total = (R_era_task × R_calibration) + R_teacher_delta + R_legacy_utility + R
 | Component | Range | Description |
 |---|---|---|
 | R_era_task | 0.0 – 1.0 | Fraction of success criteria met |
-| R_calibration | 0.5× – 1.5× | Brier-score calibration multiplier |
-| R_teacher_delta | 0.0 – 1.0 | Improvement from oversight interventions |
-| R_legacy_utility | -0.5 – 1.0 | Counterfactual value of legacy document |
+| R_calibration | 0.5× – 1.5× | Brier-score multiplier on hypothesis confidence |
+| R_teacher_delta | 0.0 – 1.0 | Improvement from Socratic oversight interventions |
+| R_legacy_utility | -0.5 – 1.0 | Counterfactual value of legacy document to next era |
 | R_leakage | -1.0 – 0.0 | Penalty for teacher giving away answers |
-| R_anti_hack | -1.0 – 0.0 | Penalty for reward hacking behaviors |
+| R_anti_hack | -1.0 – 0.0 | Penalty for repetitive/degenerate action patterns |
+
+The reward signal is **rich and composable** — not binary pass/fail. Each component targets a different failure mode, and an agent that games one component (e.g., always declaring task complete) gets penalized by another (anti-hack).
+
+## Quick Start
+
+### Offline Mode (No Docker)
+```bash
+pip install -r requirements.txt
+
+# Run an episode
+python run_episode.py --scenario cascading_incident --eras 3 --record episodes/demo.json
+
+# Launch the dashboard
+python app.py
+```
+
+### Training (Colab)
+Open the training notebook: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/divyam-r25/EpistemicOPS/blob/main/training/colab_grpo_training.ipynb)
+
+Or run locally with `--dry-run` to validate:
+```bash
+python training/train_primary.py --dry-run
+```
+
+## Links
+
+| Resource | Link |
+|---|---|
+| Live Demo | [HuggingFace Space](https://huggingface.co/spaces/Divyam-r25/EpistemicOps) |
+| Training Notebook | [Colab](https://colab.research.google.com/github/divyam-r25/EpistemicOPS/blob/main/training/colab_grpo_training.ipynb) |
+| Blog Post | [docs/BLOG_POST.md](docs/BLOG_POST.md) |
+| Pitch Script | [docs/PITCH_DECK.md](docs/PITCH_DECK.md) |
+| OpenEnv Manifest | [openenv.yaml](openenv.yaml) |
 
 ## Documentation
 - [Full Problem Statement](docs/PROBLEM_STATEMENT.md)
-- [HuggingFace Blog Post](docs/BLOG_POST.md)
+- [Blog Post](docs/BLOG_POST.md)
 - [Pitch Script](docs/PITCH_DECK.md)
