@@ -3,9 +3,18 @@ import json
 import asyncio
 import logging
 
+anthropic = None
+openai = None
+
 try:
-    import anthropic
-    import openai
+    import anthropic as _anthropic
+    anthropic = _anthropic
+except ImportError:
+    pass
+
+try:
+    import openai as _openai
+    openai = _openai
 except ImportError:
     pass
 
@@ -80,19 +89,23 @@ OUTPUT FORMAT (JSON only):
             self.model = requested_model
 
         if self.provider == "anthropic":
-            if anthropic_key:
+            if anthropic_key and anthropic is not None:
                 self.client = anthropic.AsyncAnthropic(api_key=anthropic_key)
             else:
                 self.client = None
-                if not LLMJudge._missing_key_warned["anthropic"]:
+                if anthropic is None:
+                    logger.warning("Anthropic SDK not installed. Judge will use fallback scoring.")
+                elif not LLMJudge._missing_key_warned["anthropic"]:
                     logger.warning("Anthropic API key missing.")
                     LLMJudge._missing_key_warned["anthropic"] = True
         else:
-            if openai_key:
+            if openai_key and openai is not None:
                 self.client = openai.AsyncOpenAI(api_key=openai_key)
             else:
                 self.client = None
-                if not LLMJudge._missing_key_warned["openai"]:
+                if openai is None:
+                    logger.warning("OpenAI SDK not installed. Judge will use fallback scoring.")
+                elif not LLMJudge._missing_key_warned["openai"]:
                     logger.warning("OpenAI API key missing.")
                     LLMJudge._missing_key_warned["openai"] = True
 
