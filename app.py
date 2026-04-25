@@ -183,6 +183,65 @@ def load_baseline_results():
             return json.load(f)
     return {}
 
+
+def load_proof_results():
+    path = Path(__file__).parent / "eval_results" / "proof_of_learning.json"
+    if path.exists():
+        with open(path) as f:
+            return json.load(f)
+    return {}
+
+
+def on_load_proof():
+    proof = load_proof_results()
+    if not proof:
+        return (
+            "No proof file found. Run `python eval/proof_of_learning.py` first.",
+            "",
+            None,
+            None,
+        )
+
+    summary = proof.get("summary", {})
+    baseline = summary.get("baseline", {})
+    trained = summary.get("trained", {})
+    deltas = proof.get("deltas", {})
+    examples = proof.get("examples", {})
+    config = proof.get("config", {})
+
+    table = (
+        "## Baseline vs Trained\n"
+        f"- Mode: `{config.get('mode', 'unknown')}`\n"
+        f"- Trained source: `{config.get('trained_agent_source', 'profile')}`\n"
+        f"- Scenarios: `{', '.join(config.get('scenarios', []))}`\n"
+        f"- Runs per scenario: `{config.get('runs_per_scenario', 'n/a')}` | Eras per run: `{config.get('eras_per_run', 'n/a')}`\n\n"
+        "| Metric | Baseline | Trained | Delta |\n"
+        "|---|---:|---:|---:|\n"
+        f"| Avg Reward | {baseline.get('avg_reward', 0):.3f} | {trained.get('avg_reward', 0):.3f} | {deltas.get('avg_reward', 0):+.3f} |\n"
+        f"| Criteria Completion | {baseline.get('avg_criteria_completion', 0):.3f} | {trained.get('avg_criteria_completion', 0):.3f} | {deltas.get('avg_criteria_completion', 0):+.3f} |\n"
+        f"| Drift Detection Rate | {baseline.get('drift_detection_rate', 0):.3f} | {trained.get('drift_detection_rate', 0):.3f} | {deltas.get('drift_detection_rate', 0):+.3f} |\n"
+        f"| Incident Resolution Rate | {baseline.get('incident_resolution_rate', 0):.3f} | {trained.get('incident_resolution_rate', 0):.3f} | {deltas.get('incident_resolution_rate', 0):+.3f} |\n"
+        f"| Legacy Doc Rate | {baseline.get('legacy_doc_rate', 0):.3f} | {trained.get('legacy_doc_rate', 0):.3f} | {deltas.get('legacy_doc_rate', 0):+.3f} |\n"
+    )
+
+    behavior_md = (
+        "## Behavioral Difference\n\n"
+        "### Before (baseline)\n"
+        "```\n"
+        + examples.get("before", "")
+        + "\n```\n\n"
+        "### After (trained)\n"
+        "```\n"
+        + examples.get("after", "")
+        + "\n```"
+    )
+
+    reward_curve_path = Path(__file__).parent / "plots" / "proof_reward_curve.png"
+    comparison_path = Path(__file__).parent / "plots" / "proof_before_vs_after.png"
+    reward_curve = str(reward_curve_path) if reward_curve_path.exists() else None
+    comparison = str(comparison_path) if comparison_path.exists() else None
+    return table, behavior_md, reward_curve, comparison
+
 def create_baseline_comparison_chart(baseline: dict) -> plt.Figure:
     if not baseline:
         fig, ax = plt.subplots(figsize=(10, 5))
@@ -335,6 +394,20 @@ def build_ui():
                         gr.Markdown(f"**{scenario_id}**: R_total={avg_total:.3f} | R_norm={avg_norm:.4f} | R_task={avg_task:.3f} | Drifts={avg_drifts:.1f}")
             else:
                 gr.Markdown("No baseline results found. Run `python training/baseline_eval.py` first.")
+
+        with gr.Tab("🏁 Proof of Learning"):
+            gr.Markdown("### Judge-ready before vs after evidence")
+            proof_btn = gr.Button("Load Proof Artifacts", variant="primary")
+            proof_table = gr.Markdown()
+            proof_behavior = gr.Markdown()
+            with gr.Row():
+                proof_reward_curve = gr.Image(label="Reward Curve", type="filepath")
+                proof_metrics_chart = gr.Image(label="Before vs After Metrics", type="filepath")
+            proof_btn.click(
+                on_load_proof,
+                inputs=[],
+                outputs=[proof_table, proof_behavior, proof_reward_curve, proof_metrics_chart],
+            )
 
         with gr.Tab("ℹ️ About"):
             gr.Markdown("""
