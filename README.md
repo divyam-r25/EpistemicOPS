@@ -88,11 +88,14 @@ python eval/proof_of_learning.py
 
 This generates:
 - `eval_results/proof_of_learning.json`
+- `eval_results/proof_run_metadata.json`
 - `eval_results/proof_behavior_examples.md`
 - `plots/proof_reward_curve.png`
 - `plots/proof_before_vs_after.png`
 
 ### Metric Comparison (auto-generated from real runs)
+
+All metrics above are computed from the same environment loop (same scenarios, same eras per run, same run counts) and can be traced to `eval_results/proof_of_learning.json`. Reproducibility metadata (commit, package versions, runtime, evaluation config) is stored in `eval_results/proof_run_metadata.json`.
 
 | Metric | Baseline | Trained |
 |---|---:|---:|

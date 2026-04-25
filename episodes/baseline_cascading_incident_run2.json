@@ -1,0 +1,451 @@
+{
+  "scenario_id": "cascading_incident",
+  "scenario_name": "The Cascading Incident",
+  "num_eras": 3,
+  "timestamp": "2026-04-25T06:41:23.810871+00:00",
+  "avg_normalized_reward": 0.3064,
+  "era_results": [
+    {
+      "era_id": 1,
+      "steps_taken": 8,
+      "criteria_met": [
+        "incident_resolved",
+        "legacy_doc_written"
+      ],
+      "criteria_total": [
+        "incident_resolved",
+        "legacy_doc_written"
+      ],
+      "drifts_fired": 0,
+      "drifts_detected": 0,
+      "legacy_doc_written": true,
+      "legacy_doc": "SECTION 1: WORLD STATE AT ERA END\nInvestigated issue with standard workflow.\n\nSECTION 2: TRUST RATINGS\nNo major updates.\n\nSECTION 3: DRIFT EVENTS DETECTED\nNo confirmed drifts.\n\nSECTION 4: KEY DECISIONS & RATIONALE\nApplied default incident/deployment playbook.\n\nSECTION 5: OPEN ISSUES & TECHNICAL DEBT\nRequires continued monitoring.\n\nSECTION 6: RECOMMENDED FIRST ACTIONS FOR ERA N+1\nRepeat baseline checks.",
+      "oversight_interventions": 0,
+      "reward": {
+        "R_era_task": 1.0,
+        "R_calibration": 1.0,
+        "R_era_task_adjusted": 1.0,
+        "R_teacher_delta": 0.0,
+        "R_legacy_utility": 0.35000000000000003,
+        "R_answer_leakage": -0.0,
+        "R_anti_hack_penalty": 0.0,
+        "R_total": 1.35,
+        "R_normalized": 0.3857,
+        "R_max_possible": 3.5
+      },
+      "trajectory": [
+        {
+          "step": 0,
+          "agent": "primary",
+          "action": {
+            "action_type": "ready_to_operate",
+            "payload": {
+              "world_model_summary": "Ready. Legacy doc available: False"
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 1,
+          "agent": "primary",
+          "action": {
+            "action_type": "call_tool",
+            "payload": {
+              "tool": "get_incident_status",
+              "args": {
+                "incident_id": "INC-2041"
+              }
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 2,
+          "agent": "primary",
+          "action": {
+            "action_type": "call_tool",
+            "payload": {
+              "tool": "get_incident_status",
+              "args": {
+                "incident_id": "INC-2041"
+              }
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 3,
+          "agent": "primary",
+          "action": {
+            "action_type": "call_tool",
+            "payload": {
+              "tool": "resolve_incident",
+              "args": {
+                "incident_id": "INC-2041",
+                "resolution_notes": "Applied standard remediation",
+                "resolved_by": "baseline-agent"
+              }
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 4,
+          "agent": "primary",
+          "action": {
+            "action_type": "call_tool",
+            "payload": {
+              "tool": "resolve_incident",
+              "args": {
+                "incident_id": "INC-2041",
+                "resolution_notes": "Applied standard remediation",
+                "resolved_by": "baseline-agent"
+              }
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 5,
+          "agent": "primary",
+          "action": {
+            "action_type": "declare_task_complete",
+            "payload": {
+              "outcome": "resolved",
+              "summary": "Resolved using standard playbook."
+            }
+          },
+          "phase": "LEGACY_GENERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 6,
+          "agent": "primary",
+          "action": {
+            "action_type": "write_legacy",
+            "payload": {
+              "content": "SECTION 1: WORLD STATE AT ERA END\nInvestigated issue with standard workflow.\n\nSECTION 2: TRUST RATINGS\nNo major updates.\n\nSECTION 3: DRIFT EVENTS DETECTED\nNo confirmed drifts.\n\nSECTION 4: KEY DECISIONS & RATIONALE\nApplied default incident/deployment playbook.\n\nSECTION 5: OPEN ISSUES & TECHNICAL DEBT\nRequires continued monitoring.\n\nSECTION 6: RECOMMENDED FIRST ACTIONS FOR ERA N+1\nRepeat baseline checks."
+            }
+          },
+          "phase": "LEGACY_GENERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 7,
+          "agent": "primary",
+          "action": {
+            "action_type": "end_era",
+            "payload": {}
+          },
+          "phase": "LEGACY_GENERATION",
+          "reward": 0.0,
+          "done": true
+        }
+      ]
+    },
+    {
+      "era_id": 2,
+      "steps_taken": 8,
+      "criteria_met": [
+        "legacy_doc_written"
+      ],
+      "criteria_total": [
+        "deploy_successful",
+        "legacy_doc_written"
+      ],
+      "drifts_fired": 0,
+      "drifts_detected": 0,
+      "legacy_doc_written": true,
+      "legacy_doc": "SECTION 1: WORLD STATE AT ERA END\nInvestigated issue with standard workflow.\n\nSECTION 2: TRUST RATINGS\nNo major updates.\n\nSECTION 3: DRIFT EVENTS DETECTED\nNo confirmed drifts.\n\nSECTION 4: KEY DECISIONS & RATIONALE\nApplied default incident/deployment playbook.\n\nSECTION 5: OPEN ISSUES & TECHNICAL DEBT\nRequires continued monitoring.\n\nSECTION 6: RECOMMENDED FIRST ACTIONS FOR ERA N+1\nRepeat baseline checks.",
+      "oversight_interventions": 0,
+      "reward": {
+        "R_era_task": 0.5,
+        "R_calibration": 1.0,
+        "R_era_task_adjusted": 0.5,
+        "R_teacher_delta": 0.0,
+        "R_legacy_utility": 0.35000000000000003,
+        "R_answer_leakage": -0.0,
+        "R_anti_hack_penalty": 0.0,
+        "R_total": 0.8500000000000001,
+        "R_normalized": 0.2429,
+        "R_max_possible": 3.5
+      },
+      "trajectory": [
+        {
+          "step": 0,
+          "agent": "primary",
+          "action": {
+            "action_type": "ready_to_operate",
+            "payload": {
+              "world_model_summary": "Ready. Legacy doc available: True"
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 1,
+          "agent": "primary",
+          "action": {
+            "action_type": "call_tool",
+            "payload": {
+              "tool": "get_metrics",
+              "args": {
+                "service_name": "payment-service",
+                "metric": "error_rate"
+              }
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 2,
+          "agent": "primary",
+          "action": {
+            "action_type": "call_tool",
+            "payload": {
+              "tool": "get_metrics",
+              "args": {
+                "service_name": "payment-service",
+                "metric": "error_rate"
+              }
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 3,
+          "agent": "primary",
+          "action": {
+            "action_type": "call_tool",
+            "payload": {
+              "tool": "rollback_deployment",
+              "args": {
+                "deployment_id": "dep-001",
+                "token": "deploy-token-v2"
+              }
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 4,
+          "agent": "primary",
+          "action": {
+            "action_type": "call_tool",
+            "payload": {
+              "tool": "rollback_deployment",
+              "args": {
+                "deployment_id": "dep-001",
+                "token": "deploy-token-v2"
+              }
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 5,
+          "agent": "primary",
+          "action": {
+            "action_type": "declare_task_complete",
+            "payload": {
+              "outcome": "done",
+              "summary": "Rollback executed per runbook."
+            }
+          },
+          "phase": "LEGACY_GENERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 6,
+          "agent": "primary",
+          "action": {
+            "action_type": "write_legacy",
+            "payload": {
+              "content": "SECTION 1: WORLD STATE AT ERA END\nInvestigated issue with standard workflow.\n\nSECTION 2: TRUST RATINGS\nNo major updates.\n\nSECTION 3: DRIFT EVENTS DETECTED\nNo confirmed drifts.\n\nSECTION 4: KEY DECISIONS & RATIONALE\nApplied default incident/deployment playbook.\n\nSECTION 5: OPEN ISSUES & TECHNICAL DEBT\nRequires continued monitoring.\n\nSECTION 6: RECOMMENDED FIRST ACTIONS FOR ERA N+1\nRepeat baseline checks."
+            }
+          },
+          "phase": "LEGACY_GENERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 7,
+          "agent": "primary",
+          "action": {
+            "action_type": "end_era",
+            "payload": {}
+          },
+          "phase": "LEGACY_GENERATION",
+          "reward": 0.0,
+          "done": true
+        }
+      ]
+    },
+    {
+      "era_id": 3,
+      "steps_taken": 8,
+      "criteria_met": [
+        "slo_breach_avoided",
+        "legacy_doc_written"
+      ],
+      "criteria_total": [
+        "incident_resolved",
+        "slo_breach_avoided",
+        "legacy_doc_written"
+      ],
+      "drifts_fired": 0,
+      "drifts_detected": 0,
+      "legacy_doc_written": true,
+      "legacy_doc": "SECTION 1: WORLD STATE AT ERA END\nInvestigated issue with standard workflow.\n\nSECTION 2: TRUST RATINGS\nNo major updates.\n\nSECTION 3: DRIFT EVENTS DETECTED\nNo confirmed drifts.\n\nSECTION 4: KEY DECISIONS & RATIONALE\nApplied default incident/deployment playbook.\n\nSECTION 5: OPEN ISSUES & TECHNICAL DEBT\nRequires continued monitoring.\n\nSECTION 6: RECOMMENDED FIRST ACTIONS FOR ERA N+1\nRepeat baseline checks.",
+      "oversight_interventions": 0,
+      "reward": {
+        "R_era_task": 0.6666666666666666,
+        "R_calibration": 1.0,
+        "R_era_task_adjusted": 0.6666666666666666,
+        "R_teacher_delta": 0.0,
+        "R_legacy_utility": 0.35000000000000003,
+        "R_answer_leakage": -0.0,
+        "R_anti_hack_penalty": 0.0,
+        "R_total": 1.0166666666666666,
+        "R_normalized": 0.2905,
+        "R_max_possible": 3.5
+      },
+      "trajectory": [
+        {
+          "step": 0,
+          "agent": "primary",
+          "action": {
+            "action_type": "ready_to_operate",
+            "payload": {
+              "world_model_summary": "Ready. Legacy doc available: True"
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 1,
+          "agent": "primary",
+          "action": {
+            "action_type": "call_tool",
+            "payload": {
+              "tool": "get_metrics",
+              "args": {
+                "service_name": "payment-service",
+                "metric": "latency"
+              }
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 2,
+          "agent": "primary",
+          "action": {
+            "action_type": "call_tool",
+            "payload": {
+              "tool": "get_metrics",
+              "args": {
+                "service_name": "payment-service",
+                "metric": "latency"
+              }
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 3,
+          "agent": "primary",
+          "action": {
+            "action_type": "write_reasoning",
+            "payload": {
+              "thought": "Metrics retrieved; monitoring for changes."
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 4,
+          "agent": "primary",
+          "action": {
+            "action_type": "write_reasoning",
+            "payload": {
+              "thought": "Metrics retrieved; monitoring for changes."
+            }
+          },
+          "phase": "OPERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 5,
+          "agent": "primary",
+          "action": {
+            "action_type": "declare_task_complete",
+            "payload": {
+              "outcome": "investigated",
+              "summary": "No action needed yet."
+            }
+          },
+          "phase": "LEGACY_GENERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 6,
+          "agent": "primary",
+          "action": {
+            "action_type": "write_legacy",
+            "payload": {
+              "content": "SECTION 1: WORLD STATE AT ERA END\nInvestigated issue with standard workflow.\n\nSECTION 2: TRUST RATINGS\nNo major updates.\n\nSECTION 3: DRIFT EVENTS DETECTED\nNo confirmed drifts.\n\nSECTION 4: KEY DECISIONS & RATIONALE\nApplied default incident/deployment playbook.\n\nSECTION 5: OPEN ISSUES & TECHNICAL DEBT\nRequires continued monitoring.\n\nSECTION 6: RECOMMENDED FIRST ACTIONS FOR ERA N+1\nRepeat baseline checks."
+            }
+          },
+          "phase": "LEGACY_GENERATION",
+          "reward": 0.0,
+          "done": false
+        },
+        {
+          "step": 7,
+          "agent": "primary",
+          "action": {
+            "action_type": "end_era",
+            "payload": {}
+          },
+          "phase": "LEGACY_GENERATION",
+          "reward": 0.0,
+          "done": true
+        }
+      ]
+    }
+  ]
+}
