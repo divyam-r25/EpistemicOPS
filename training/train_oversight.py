@@ -13,6 +13,7 @@ The reward function combines:
 Requires: GPU with CUDA, unsloth, trl
 Run in Colab: !python training/train_oversight.py
 """
+import os
 import sys
 import logging
 from pathlib import Path
@@ -31,6 +32,12 @@ try:
     TRAINING_AVAILABLE = True
 except ImportError:
     logger.warning("Training deps not available. Install via: pip install -r requirements-training.txt")
+
+
+def _training_report_to() -> str:
+    if os.getenv("WANDB_DISABLED", "").lower() in ("1", "true", "yes"):
+        return os.getenv("TRAIN_FALLBACK_REPORT_TO", "none")
+    return os.getenv("TRAIN_REPORT_TO", "wandb")
 
 
 def build_oversight_prompts(num_samples: int = 200) -> "Dataset":
@@ -194,7 +201,7 @@ def train_oversight_agent():
         temperature=0.7,
         logging_steps=10,
         save_steps=50,
-        report_to="none",
+        report_to=_training_report_to(),
         max_completion_length=256,
     )
 

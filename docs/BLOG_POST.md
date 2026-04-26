@@ -49,6 +49,8 @@ The GRPO training pipeline (Llama 3.1 8B via Unsloth, 4-bit quantized) trains ag
 
 For submission-grade evidence, pair it with `eval_results/proof_run_metadata.json` so judges can verify run mode (checkpoint-required vs fallback demo), config, and provenance in one place.
 
+**Experiment tracking:** when training with GRPO, enable Weights & Biases (`WANDB_API_KEY`, `report_to='wandb'` in the Colab notebook or `training/train_primary.py`) so judges get loss/LR curves and a shareable run URL; optionally run `python eval/proof_of_learning.py --wandb` to log baseline vs trained eval metrics in the same project.
+
 ## Try it yourself
 
 - **Live Demo:** [HuggingFace Space](https://huggingface.co/spaces/Divyam-r25/EpistemicOps)

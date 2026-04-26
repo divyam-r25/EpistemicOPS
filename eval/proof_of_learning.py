@@ -236,6 +236,42 @@ def _extract_behavior_examples(baseline_episode, trained_episode):
     return before_text, after_text
 
 
+def _log_proof_to_wandb(output: dict, run_metadata: dict, plots_dir: Path, args) -> None:
+    """Optional: upload eval summary + proof plots for judge-facing dashboards."""
+    env_flag = os.getenv("EPISTEMICOPS_WANDB_PROOF", "").lower() in ("1", "true", "yes")
+    if not args.wandb and not env_flag:
+        return
+    try:
+        import wandb
+    except ImportError:
+        print("[proof] wandb not installed; pip install wandb or omit --wandb")
+        return
+    project = (args.wandb_project or os.getenv("WANDB_PROJECT") or "epistemicops").strip()
+    ts = run_metadata.get("runtime", {}).get("timestamp_utc", "proof")[:19].replace(":", "")
+    name = (args.wandb_run_name or f"proof-{ts}").strip() or f"proof-{ts}"
+    cfg = dict(output.get("config", {}))
+    cfg["artifact"] = "proof_of_learning"
+    run = wandb.init(project=project, name=name, job_type="eval", config=cfg, reinit=True)
+    log_dict = {}
+    for side in ("baseline", "trained"):
+        for k, v in output.get("summary", {}).get(side, {}).items():
+            if isinstance(v, (int, float)):
+                log_dict[f"eval/{side}/{k}"] = float(v)
+    for k, v in output.get("deltas", {}).items():
+        if isinstance(v, (int, float)):
+            log_dict[f"eval/delta/{k}"] = float(v)
+    if log_dict:
+        run.log(log_dict)
+    for tag, fname in (
+        ("eval/plot/reward_curve", "proof_reward_curve.png"),
+        ("eval/plot/metrics_bar", "proof_before_vs_after.png"),
+    ):
+        path = plots_dir / fname
+        if path.exists():
+            run.log({tag: wandb.Image(str(path))})
+    run.finish()
+
+
 def _run_consistency_checks(policy_results):
     warnings = []
     for run in policy_results:
@@ -440,6 +476,21 @@ def _parse_args():
         action="store_true",
         help="Fail closed unless trained side runs from a checkpoint.",
     )
+    parser.add_argument(
+        "--wandb",
+        action="store_true",
+        help="Log proof summary metrics and plots to Weights & Biases (requires wandb + auth).",
+    )
+    parser.add_argument(
+        "--wandb-project",
+        default="",
+        help="W&B project name (default: WANDB_PROJECT env or 'epistemicops').",
+    )
+    parser.add_argument(
+        "--wandb-run-name",
+        default="",
+        help="W&B run name (default: auto from timestamp).",
+    )
     return parser.parse_args()
 
 
@@ -608,6 +659,8 @@ async def main():
         print("\nConsistency warnings:")
         for warning in run_metadata["warnings"]:
             print(f"  - {warning}")
+
+    _log_proof_to_wandb(output, run_metadata, plots_dir, args)
 
 
 if __name__ == "__main__":

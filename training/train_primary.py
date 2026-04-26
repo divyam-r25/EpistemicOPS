@@ -41,6 +41,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("train-primary")
 
 
+def _training_report_to() -> str:
+    """TRL/HF Hub integration: wandb, tensorboard, or none."""
+    if os.getenv("WANDB_DISABLED", "").lower() in ("1", "true", "yes"):
+        return os.getenv("TRAIN_FALLBACK_REPORT_TO", "none")
+    return os.getenv("TRAIN_REPORT_TO", "wandb")
+
+
 _scenario_loader = ScenarioLoader()
 _validator = ActionValidator()
 _curriculum = CurriculumScheduler()
@@ -204,6 +211,8 @@ def train_primary_agent():
         use_gradient_checkpointing="unsloth",
     )
 
+    _report_to = _training_report_to()
+    logger.info("TRL report_to=%s (set WANDB_DISABLED=true or TRAIN_REPORT_TO=tensorboard to change)", _report_to)
     training_args = GRPOConfig(
         output_dir="./checkpoints/primary_agent",
         num_train_epochs=3,
@@ -214,7 +223,7 @@ def train_primary_agent():
         temperature=0.8,
         logging_steps=10,
         save_steps=100,
-        report_to="wandb",  # set to "none" to disable
+        report_to=_report_to,
         max_completion_length=512,
     )
 

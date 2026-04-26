@@ -191,6 +191,9 @@ python eval/proof_of_learning.py --trained-agent-source checkpoint --trained-che
 
 # 4) Validate artifact integrity before demo/submission
 python eval/validate_evidence.py
+
+# 5) Optional: push the same proof metrics + plots to Weights & Biases
+python eval/proof_of_learning.py --proof-mode demo --wandb
 ```
 
 ### Training (Colab)
@@ -200,6 +203,14 @@ Or run locally with `--dry-run` to validate:
 ```bash
 python training/train_primary.py --dry-run
 ```
+
+### Experiment tracking (for judges)
+
+Hackathon judges often expect **structured training metrics** (loss, learning rate, reward-related signals), not only console logs.
+
+- **Weights & Biases (recommended):** Install `wandb`, set `WANDB_API_KEY`, and run training. [`training/train_primary.py`](training/train_primary.py) uses `GRPOConfig(report_to=...)` (default `wandb` unless disabled). In Colab, add **`WANDB_API_KEY`** to Secrets and run the notebook’s W&B setup cell—then paste the **W&B run URL** next to your [`eval_results/proof_of_learning.json`](eval_results/proof_of_learning.json) and plots in submissions or the README.
+- **Log environment proof to the same project (optional):** after a proof run, `python eval/proof_of_learning.py --proof-mode demo --wandb` uploads baseline vs trained summary metrics (and proof plots) to W&B when `wandb` is installed and authenticated.
+- **Without W&B:** set `WANDB_DISABLED=true` to use `report_to=none` locally, or set `TRAIN_REPORT_TO=tensorboard` for local TensorBoard logs (no shareable link unless you export or use TensorBoard.dev).
 
 ### Colab mismatch quick fix
 If you see errors like `unexpected keyword argument 'primary_agent_profile'`:
@@ -232,7 +243,7 @@ uvicorn environment.server:app --host 0.0.0.0 --port 8000
 - **Environment Innovation (40%)**: multi-era memory transfer, silent API drift injection, Socratic oversight constraints.
 - **Storytelling (30%)**: replay + proof tab + behavior examples in `proof_behavior_examples.md`.
 - **Improvement Evidence (20%)**: reproducible baseline vs trained metrics + reward curves from `eval/proof_of_learning.py`.
-- **Reward/Training Pipeline (10%)**: environment -> reward components -> policy comparison script -> measurable gains.
+- **Reward/Training Pipeline (10%)**: environment -> reward components -> policy comparison script -> measurable gains; optional W&B / TensorBoard for training curves and `eval/proof_of_learning.py --wandb` for eval dashboards.
 
 ## Documentation
 - [Full Problem Statement](docs/PROBLEM_STATEMENT.md)
