@@ -232,6 +232,8 @@ This repo keeps canonical usage on `primary_profile` and accepts legacy `primary
 | Pitch Script | [docs/PITCH_DECK.md](docs/PITCH_DECK.md) |
 | OpenEnv Manifest | [openenv.yaml](openenv.yaml) |
 
+**Hugging Face Space — Live Simulation:** Runs out of the box with **offline** simulated APIs and deterministic agent policies (no Docker). Optional: add a Space secret **`OPENAI_API_KEY`** if you want real LLM calls for the primary agent, oversight, and judge instead of mocks.
+
 The OpenEnv manifest declares **`server.port: 8000`** (separate from Gradio’s default `7860`). To run the FastAPI server locally:
 
 ```bash
