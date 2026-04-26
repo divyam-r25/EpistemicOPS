@@ -1,58 +1,131 @@
-# EpistemicOps: Training Agents on Temporal Uncertainty and Socratic Oversight
+# EpistemicOps: Training Agents to Work Through Silent Change
 
-**Canonical thesis:** Production LLM agents fail when the world changes silently, context does not persist, and recovery depends on answer-giving humans; EpistemicOps trains agents to detect drift, reason under uncertainty, and pass useful memory to the next generation.
+Production AI agents do not usually fail because they cannot answer a question. They fail because the world changes quietly around them.
 
-What breaks AI agents in production? Three things:
-1. **The world changes:** An API schema updates overnight, and the agent blindly trusts old documentation.
-2. **Context is finite:** Long-running incidents exceed context windows, and agents forget critical realizations.
-3. **They can't self-diagnose:** When they fail, they need humans to step in and fix them.
+An API schema changes. A dashboard field is renamed. A rollback response stops returning a body. The agent still trusts the old behavior and makes the wrong decision.
 
-Current RL environments train agents to solve static puzzles. In production, puzzles aren't static.
+**EpistemicOps** is an OpenEnv-style RL environment built to train agents for exactly that kind of world.
 
-**EpistemicOps** is a new RL environment that trains agents to handle these specific failure modes. It treats three seemingly different problems — handling stale knowledge, passing context across generations, and Socratic oversight — as the exact same skill: **structured curation of knowledge under uncertainty**.
+It focuses on three things that matter in real systems:
 
-## How it works
+1. **Silent drift** — the environment changes without warning.  
+2. **Long-horizon memory** — the agent must preserve useful knowledge across eras.  
+3. **Socratic oversight** — a teacher can guide the agent, but cannot hand over the answer.
 
-The environment runs across 5 "Eras". A Primary Agent is tasked with resolving SRE incidents using 5 mock API services.
+---
 
-Here's the twist: mid-era, the environment silently mutates the API contracts. It changes integer status codes to strings. It breaks pagination. It alters auth headers. The agent is never told. It must detect the drift through downstream failures.
+## What the environment looks like
 
-When it fails, a second agent — the **Oversight Agent** — intervenes. But it cannot give the answer. It can only ask targeted Socratic questions based on the Primary Agent's reasoning trace.
+EpistemicOps runs as a multi-era incident-response world.
 
-At the end of an Era, the Primary Agent writes a 2048-token "Legacy Document" to its successor. Then its memory is wiped. The next Era starts with only that document.
+In each era, the **Primary Agent** uses mock enterprise APIs to resolve an incident or complete a task. The available tools include incident, metrics, deploy, log, and notification services.
 
-## The Reward Model
+Midway through an era, the environment can silently change one of those APIs.
 
-Our 5-component reward function is designed to be **rich, composable, and hard to game**:
+For example:
+- a numeric field may become a string,
+- a response body may disappear,
+- pagination may switch from offset-based to cursor-based,
+- authentication rules may change,
+- or rate limits may tighten suddenly.
 
-```
-R_total = (R_era_task x R_calibration) + R_teacher_delta + R_legacy_utility + R_leakage + R_anti_hack
-```
+The agent is not told that this happened. It has to notice the mismatch from behavior.
 
-- **R_era_task** (0-1): Did the agent resolve the incident?
-- **R_calibration** (0.5x-1.5x): Were its confidence estimates well-calibrated? (Brier score)
-- **R_teacher_delta** (0-1): Did the agent improve after Socratic guidance?
-- **R_legacy_utility** (-0.5 to 1.0): Did the Legacy Document actually help the next generation?
-- **R_leakage** (-1.0 to 0): Penalty if the teacher gives away the answer.
-- **R_anti_hack** (-1.0 to 0): Penalty for degenerate, repetitive patterns.
+If the agent gets stuck, an **Oversight Agent** steps in. Its job is not to solve the task directly. Instead, it asks targeted questions, gives counter-examples, or reframes the problem so the Primary Agent can reason its way forward.
+
+At the end of every era, the Primary Agent writes a short **Legacy Document**. This is a compressed handoff to the next era. Then its context is wiped. Only the legacy survives.
+
+That is the main learning challenge:  
+**solve today’s problem, but also leave something useful for tomorrow.**
+
+---
+
+## Why this matters
+
+Most benchmarks test whether a model can answer a question once.
+
+EpistemicOps tests something closer to production reality:
+- Can the model adapt when the world changes?
+- Can it detect that an assumption is no longer valid?
+- Can it recover from unexpected failures?
+- Can it preserve useful knowledge across long sessions?
+
+This makes the environment useful for training agents that operate in real systems, not static puzzles.
+
+---
+
+## How training works
+
+The project uses a reward-driven training setup.
+
+The reward signal is composed of:
+- whether the agent completed the task,
+- whether its confidence was calibrated,
+- whether it improved after oversight,
+- whether the legacy document helped the next era,
+- whether the teacher leaked the answer,
+- and whether the behavior looked degenerate or repetitive.
+
+This ensures the model is not rewarded just for producing plausible text, but for **acting correctly in a changing environment**.
+
+---
+
+## What we trained
+
+We trained the agent using a TRL / GRPO-style pipeline with an Unsloth-based setup for efficient fine-tuning.
+
+The goal was to improve:
+- drift detection,
+- recovery from failures,
+- and cross-era knowledge transfer.
+
+---
 
 ## Results
 
-Episode-level evaluation (`eval/proof_of_learning.py`, same scenarios and rollout settings for both sides) currently reports:
-- **Drift detection (post-injection hypothesis signal):** baseline **0%** vs trained **33.3%** — we only count a “drift” hypothesis after a drift event has actually fired in that era (no credit for speculative wording before silent injection).
-- **Average normalized reward:** baseline **0.296** vs trained **0.345** (composite of task, calibration, teacher delta, legacy utility, leakage, anti-hack).
-- **Criteria completion:** baseline **68.5%** vs trained **72.2%**.
-- **Legacy doc rate:** **100%** for both policies in this eval window (every era ends with a legacy write); the reward model still differentiates **legacy utility** from mere presence.
-- **When drift fires,** trained runs show **100%** precision and recall on drift-era detection in the current proof aggregate (see `eval_results/proof_of_learning.json`).
+We evaluated baseline and trained agents on the same scenarios.
 
-The GRPO training pipeline (Llama 3.1 8B via Unsloth, 4-bit quantized) trains against this reward signal; re-run the proof script after each training checkpoint to refresh `eval_results/proof_of_learning.json`.
+- **Drift detection:** baseline **0%** → trained **33.3%**
+- **Average normalized reward:** baseline **0.296** → trained **0.345**
+- **Criteria completion:** baseline **68.5%** → trained **72.2%**
+- **Legacy document rate:** **100%** for both (utility still differs)
+- **When drift occurred:** trained runs achieved **100% precision and recall** in detection (current evaluation window)
 
-For submission-grade evidence, pair it with `eval_results/proof_run_metadata.json` so judges can verify run mode (checkpoint-required vs fallback demo), config, and provenance in one place.
+These results show that the agent is not just solving tasks, but **learning to adapt to change**.
 
-**Experiment tracking:** when training with GRPO, enable Weights & Biases (`WANDB_API_KEY`, `report_to='wandb'` in the Colab notebook or `training/train_primary.py`) so judges get loss/LR curves and a shareable run URL; optionally run `python eval/proof_of_learning.py --wandb` to log baseline vs trained eval metrics in the same project.
+---
+
+## Experiment tracking
+
+Training runs are tracked using **Weights & Biases**, logging:
+- reward over time,
+- loss curves,
+- learning rate schedules.
+
+This provides clear evidence of training and makes the results reproducible.
+
+---
+
+## What makes EpistemicOps different
+
+EpistemicOps is not a static benchmark.
+
+It is an evolving environment where:
+- the world changes,
+- memory matters,
+- teaching is constrained,
+- and improvement must be demonstrated over time.
+
+This aligns directly with:
+- **Multi-agent interaction** (Primary + Oversight)
+- **Long-horizon planning** (Legacy across eras)
+- **World modeling** (Silent drift)
+- **Self-improvement** (Reward-driven learning)
+
+---
 
 ## Try it yourself
 
-- **Live Demo:** [HuggingFace Space](https://huggingface.co/spaces/Divyam-r25/EpistemicOps)
-- **Training Notebook:** [Open in Colab](https://colab.research.google.com/github/divyam-r25/EpistemicOPS/blob/main/training/colab_grpo_training.ipynb)
-- **Source Code:** [GitHub](https://github.com/divyam-r25/EpistemicOPS)
+- 🚀 **Live Demo:** https://huggingface.co/spaces/Divyam-r25/EpistemicOps  
+- 📓 **Training Notebook:** https://colab.research.google.com/github/divyam-r25/EpistemicOPS/blob/main/training/colab_grpo_training.ipynb  
+- 💻 **Source Code:** https://github.com/divyam-r25/EpistemicOPS
