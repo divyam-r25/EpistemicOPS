@@ -487,6 +487,8 @@ def find_proof_episode_paths():
 
 def on_run_simulation(scenario_id, num_eras):
     try:
+        # Spaces have no mock Docker stack; default offline unless user explicitly opted out.
+        os.environ.setdefault("EPISTEMICOPS_OFFLINE", "true")
         from run_episode import run_full_episode
         record_path = str(Path(__file__).parent / "episodes" / f"live_{scenario_id}.json")
         asyncio.run(run_full_episode(scenario_id=scenario_id, num_eras=int(num_eras), record_path=record_path))
