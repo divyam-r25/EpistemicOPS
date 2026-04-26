@@ -1,5 +1,7 @@
 # EpistemicOps — HuggingFace Spaces Dependencies
 # Minimal set needed for the Gradio demo dashboard
+# Gradio 5.9.x crashes on /info when JSON Schema uses boolean additionalProperties (Pydantic / Py3.13).
+gradio==5.50.0
 pandas>=2.0.0
 matplotlib>=3.8.0
 numpy>=1.24.0
