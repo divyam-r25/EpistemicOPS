@@ -191,10 +191,13 @@ This repo keeps canonical usage on `primary_profile` and accepts legacy `primary
 
 ## Links
 
+Kaggle GRPO notebook: enable **GPU** (Settings → Accelerator), **Internet** (Settings → Internet), and add **`OPENAI_API_KEY`** under **Add-ons → Secrets** before running reward or proof cells.
+
 | Resource | Link |
 |---|---|
 | Live Demo | [HuggingFace Space](https://huggingface.co/spaces/Divyam-r25/EpistemicOps) |
 | Training Notebook | [Colab](https://colab.research.google.com/github/divyam-r25/EpistemicOPS/blob/main/training/colab_grpo_training.ipynb) |
+| Kaggle GRPO (same flow as Colab) | [Notebook on GitHub](https://github.com/divyam-r25/EpistemicOPS/blob/main/training/kaggle_grpo_training.ipynb) |
 | Blog Post | [docs/BLOG_POST.md](docs/BLOG_POST.md) |
 | Pitch Script | [docs/PITCH_DECK.md](docs/PITCH_DECK.md) |
 | OpenEnv Manifest | [openenv.yaml](openenv.yaml) |
