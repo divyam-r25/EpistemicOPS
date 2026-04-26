@@ -1,0 +1,11 @@
+{
+  "scenarios": [
+    "cascading_incident",
+    "deployment_disaster",
+    "invisible_outage"
+  ],
+  "num_runs": 3,
+  "eras_per_run": 3,
+  "offline_mode": false,
+  "python_version": "3.14.3"
+}

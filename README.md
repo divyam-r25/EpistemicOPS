@@ -15,6 +15,8 @@ short_description: RL Environment for Temporal Drift & Oversight
 
 **An RL Training Environment for Temporal Uncertainty, Scalable Oversight, and Generational Knowledge Transfer.**
 
+**Canonical thesis:** Production LLM agents fail when the world changes silently, context does not persist, and recovery depends on answer-giving humans; EpistemicOps trains agents to detect drift, reason under uncertainty, and pass useful memory to the next generation.
+
 [![HuggingFace Space](https://img.shields.io/badge/%F0%9F%A4%97%20Spaces-Live%20Demo-blue)](https://huggingface.co/spaces/Divyam-r25/EpistemicOps)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/divyam-r25/EpistemicOPS/blob/main/training/colab_grpo_training.ipynb)
 
@@ -28,6 +30,10 @@ Three things break production AI agents every day:
 Current RL environments train agents on static tasks. In production, tasks are not static.
 
 **EpistemicOps** trains agents to handle all three simultaneously. It treats stale knowledge, context loss, and teaching — as the same skill: **structured curation of knowledge under uncertainty**.
+
+## Why this matters
+
+Judges should not need to reverse-engineer architecture to verify learning. This repo is set up to show one fair before-vs-after comparison, one reward curve, one trajectory contrast, and one reproducible metadata file that explains exactly how those artifacts were produced.
 
 ## How It Works
 
@@ -83,7 +89,11 @@ This project now ships a reproducible before/after pipeline:
 
 Run:
 ```bash
-python eval/proof_of_learning.py
+# Demo mode: allowed to fallback to profile if checkpoint is unavailable
+python eval/proof_of_learning.py --proof-mode demo
+
+# Final evidence mode: fail closed unless checkpoint run succeeds
+python eval/proof_of_learning.py --proof-mode final --trained-agent-source checkpoint --trained-checkpoint-path ./checkpoints/primary_agent_final
 ```
 
 This generates:
@@ -97,13 +107,20 @@ This generates:
 
 All metrics above are computed from the same environment loop (same scenarios, same eras per run, same run counts) and can be traced to `eval_results/proof_of_learning.json`. Reproducibility metadata (commit, package versions, runtime, evaluation config) is stored in `eval_results/proof_run_metadata.json`.
 
+**Drift detection (headline metric):** fraction of eras where the primary declares a hypothesis that mentions drift **after** a drift event has actually fired in that era (no credit for speculative “drift” wording before injection).
+
 | Metric | Baseline | Trained | Delta |
 |---|---:|---:|---:|
 | Avg Reward | 0.2958 | 0.3449 | +0.0491 |
 | Criteria Completion | 0.6852 | 0.7222 | +0.0370 |
-| Drift Detection Rate | 0.0000 | 0.7778 | +0.7778 |
+| Drift Detection Rate | 0.0000 | 0.3333 | +0.3333 |
+| Drift Precision | 0.0000 | 1.0000 | +1.0000 |
+| Drift Recall | 0.0000 | 1.0000 | +1.0000 |
 | Incident Resolution Rate | 0.1111 | 0.2222 | +0.1111 |
 | Legacy Doc Rate | 1.0000 | 1.0000 | 0.0000 |
+| Judge Fallback Rate | 0.0000 | 1.0000 | +1.0000 |
+
+*Judge fallback rate is 1.0 when no judge API is configured (neutral scores); set `OPENAI_API_KEY` / `JUDGE_PROVIDER` for live judge scoring.*
 
 ![Reward curve (before vs after)](plots/proof_reward_curve.png)
 *Average episode reward across identical scenarios and run counts.*
@@ -116,6 +133,8 @@ All metrics above are computed from the same environment loop (same scenarios, s
 See `eval_results/proof_behavior_examples.md` for trajectory excerpts showing:
 - baseline retries and brittle assumptions under drift
 - trained policy declaring drift hypotheses and adapting actions
+
+The Gradio app also includes a **Compare Replay** tab for side-by-side episode playback with shared step controls and event jump cards (first drift, first oversight, first recovery).
 
 ## Baseline Diagnostics
 
@@ -169,6 +188,9 @@ python eval/proof_of_learning.py
 
 # 3) Optional: compare baseline profile vs your real GRPO checkpoint
 python eval/proof_of_learning.py --trained-agent-source checkpoint --trained-checkpoint-path ./checkpoints/primary_agent_final
+
+# 4) Validate artifact integrity before demo/submission
+python eval/validate_evidence.py
 ```
 
 ### Training (Colab)
@@ -191,13 +213,10 @@ This repo keeps canonical usage on `primary_profile` and accepts legacy `primary
 
 ## Links
 
-Kaggle GRPO notebook: enable **GPU** (Settings → Accelerator), **Internet** (Settings → Internet), and add **`OPENAI_API_KEY`** under **Add-ons → Secrets** before running reward or proof cells.
-
 | Resource | Link |
 |---|---|
 | Live Demo | [HuggingFace Space](https://huggingface.co/spaces/Divyam-r25/EpistemicOps) |
 | Training Notebook | [Colab](https://colab.research.google.com/github/divyam-r25/EpistemicOPS/blob/main/training/colab_grpo_training.ipynb) |
-| Kaggle GRPO (same flow as Colab) | [Notebook on GitHub](https://github.com/divyam-r25/EpistemicOPS/blob/main/training/kaggle_grpo_training.ipynb) |
 | Blog Post | [docs/BLOG_POST.md](docs/BLOG_POST.md) |
 | Pitch Script | [docs/PITCH_DECK.md](docs/PITCH_DECK.md) |
 | OpenEnv Manifest | [openenv.yaml](openenv.yaml) |

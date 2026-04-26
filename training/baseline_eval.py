@@ -5,6 +5,9 @@ import asyncio
 import json
 import sys
 import random
+import argparse
+import platform
+import os
 from pathlib import Path
 import logging
 
@@ -17,26 +20,32 @@ logger = logging.getLogger("baseline-eval")
 
 SCENARIOS = ["cascading_incident", "deployment_disaster", "invisible_outage"]
 NUM_RUNS = 3  # Runs per scenario for variance
+ERAS_PER_RUN = 3
 
 
-async def run_baseline_evaluation():
+def _stable_scenario_seed(scenario_id: str) -> int:
+    return sum(ord(ch) for ch in scenario_id) % 1000
+
+
+async def run_baseline_evaluation(scenarios=None, num_runs: int = NUM_RUNS, eras_per_run: int = ERAS_PER_RUN):
+    scenarios = scenarios or SCENARIOS
     results = {}
     
-    for scenario_id in SCENARIOS:
+    for scenario_id in scenarios:
         logger.info(f"\n{'='*50}")
         logger.info(f"EVALUATING SCENARIO: {scenario_id}")
         logger.info(f"{'='*50}")
         
         scenario_results = []
-        for run_idx in range(NUM_RUNS):
-            logger.info(f"  Run {run_idx + 1}/{NUM_RUNS}")
+        for run_idx in range(num_runs):
+            logger.info(f"  Run {run_idx + 1}/{num_runs}")
             
-            random.seed(42 + run_idx * 17 + hash(scenario_id) % 100)
+            random.seed(42 + run_idx * 17 + _stable_scenario_seed(scenario_id))
             
             try:
                 episode = await run_full_episode(
                     scenario_id=scenario_id,
-                    num_eras=2,  # 2 eras per run for speed
+                    num_eras=eras_per_run,
                     record_path=None,
                     primary_profile="baseline",
                     primary_use_llm=False,
@@ -73,10 +82,20 @@ async def run_baseline_evaluation():
         results[scenario_id] = scenario_results
     
     # Save results
-    output_path = Path(__file__).parent.parent / "eval_results" / "baseline_results.json"
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    eval_dir = Path(__file__).parent.parent / "eval_results"
+    output_path = eval_dir / "baseline_results.json"
+    eval_dir.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w") as f:
         json.dump(results, f, indent=2)
+    metadata = {
+        "scenarios": scenarios,
+        "num_runs": num_runs,
+        "eras_per_run": eras_per_run,
+        "offline_mode": os.getenv("EPISTEMICOPS_OFFLINE", "").lower() == "true",
+        "python_version": platform.python_version(),
+    }
+    with open(eval_dir / "baseline_eval_metadata.json", "w", encoding="utf-8") as f:
+        json.dump(metadata, f, indent=2)
     
     # Print summary
     print(f"\n{'='*60}")
@@ -102,4 +121,16 @@ async def run_baseline_evaluation():
 
 
 if __name__ == "__main__":
-    asyncio.run(run_baseline_evaluation())
+    parser = argparse.ArgumentParser(description="Run baseline evaluation with explicit config.")
+    parser.add_argument("--scenarios", default=",".join(SCENARIOS), help="Comma-separated scenario ids")
+    parser.add_argument("--runs-per-scenario", type=int, default=NUM_RUNS)
+    parser.add_argument("--eras-per-run", type=int, default=ERAS_PER_RUN)
+    cli_args = parser.parse_args()
+    cli_scenarios = [s.strip() for s in cli_args.scenarios.split(",") if s.strip()]
+    asyncio.run(
+        run_baseline_evaluation(
+            scenarios=cli_scenarios,
+            num_runs=cli_args.runs_per_scenario,
+            eras_per_run=cli_args.eras_per_run,
+        )
+    )

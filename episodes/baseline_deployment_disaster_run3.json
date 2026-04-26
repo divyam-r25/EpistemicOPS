@@ -2,7 +2,7 @@
   "scenario_id": "deployment_disaster",
   "scenario_name": "The Deployment Disaster",
   "num_eras": 3,
-  "timestamp": "2026-04-25T20:13:08.677802+00:00",
+  "timestamp": "2026-04-26T03:40:23.309954+00:00",
   "avg_normalized_reward": 0.2905,
   "era_results": [
     {
@@ -17,6 +17,7 @@
       ],
       "drifts_fired": 0,
       "drifts_detected": 0,
+      "first_drift_step": null,
       "legacy_doc_written": true,
       "legacy_doc": "SECTION 1: WORLD STATE AT ERA END\nInvestigated issue with standard workflow.\n\nSECTION 2: TRUST RATINGS\nNo major updates.\n\nSECTION 3: DRIFT EVENTS DETECTED\nNo confirmed drifts.\n\nSECTION 4: KEY DECISIONS & RATIONALE\nApplied default incident/deployment playbook.\n\nSECTION 5: OPEN ISSUES & TECHNICAL DEBT\nRequires continued monitoring.\n\nSECTION 6: RECOMMENDED FIRST ACTIONS FOR ERA N+1\nRepeat baseline checks.",
       "oversight_interventions": 0,
@@ -166,6 +167,7 @@
       ],
       "drifts_fired": 0,
       "drifts_detected": 0,
+      "first_drift_step": null,
       "legacy_doc_written": true,
       "legacy_doc": "SECTION 1: WORLD STATE AT ERA END\nInvestigated issue with standard workflow.\n\nSECTION 2: TRUST RATINGS\nNo major updates.\n\nSECTION 3: DRIFT EVENTS DETECTED\nNo confirmed drifts.\n\nSECTION 4: KEY DECISIONS & RATIONALE\nApplied default incident/deployment playbook.\n\nSECTION 5: OPEN ISSUES & TECHNICAL DEBT\nRequires continued monitoring.\n\nSECTION 6: RECOMMENDED FIRST ACTIONS FOR ERA N+1\nRepeat baseline checks.",
       "oversight_interventions": 0,
@@ -316,6 +318,7 @@
       ],
       "drifts_fired": 0,
       "drifts_detected": 0,
+      "first_drift_step": null,
       "legacy_doc_written": true,
       "legacy_doc": "SECTION 1: WORLD STATE AT ERA END\nInvestigated issue with standard workflow.\n\nSECTION 2: TRUST RATINGS\nNo major updates.\n\nSECTION 3: DRIFT EVENTS DETECTED\nNo confirmed drifts.\n\nSECTION 4: KEY DECISIONS & RATIONALE\nApplied default incident/deployment playbook.\n\nSECTION 5: OPEN ISSUES & TECHNICAL DEBT\nRequires continued monitoring.\n\nSECTION 6: RECOMMENDED FIRST ACTIONS FOR ERA N+1\nRepeat baseline checks.",
       "oversight_interventions": 0,

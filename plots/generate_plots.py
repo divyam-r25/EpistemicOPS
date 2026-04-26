@@ -209,7 +209,7 @@ def plot_4_episode_timeline(baseline):
     ax.set_xlim(0, total_steps)
     ax.set_ylim(0, 4)
     ax.set_xlabel('Step (cumulative)', color='white', fontsize=11)
-    ax.set_title('Episode Timeline — Cascading Incident (3 runs × 2 eras)', color='white', fontsize=13, fontweight='bold')
+    ax.set_title('Episode Timeline — Cascading Incident (baseline eval, 3 eras per run)', color='white', fontsize=13, fontweight='bold')
     ax.tick_params(colors='white')
     ax.set_yticks([])
 

@@ -33,6 +33,35 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message
 logger = logging.getLogger("orchestrator")
 
 
+def _first_drift_injection_step(state) -> int | None:
+    """Earliest world step at which a drift was recorded (post-increment step)."""
+    steps = []
+    for info in state.services.values():
+        if info.get("status") == "DRIFTED" and "drift_fired_at_step" in info:
+            steps.append(int(info["drift_fired_at_step"]))
+    return min(steps) if steps else None
+
+
+def _count_drift_hypotheses_after_fire(hypotheses: list, first_drift_step: int | None) -> int:
+    """
+    Count drift-themed hypotheses only after drift has fired in this era.
+    Avoids counting speculative 'drift' wording before any silent contract change.
+    """
+    if first_drift_step is None:
+        return 0
+    n = 0
+    for h in hypotheses:
+        text = str(h.get("hypothesis", "")).lower()
+        if "drift" not in text:
+            continue
+        declared = h.get("declared_at_step")
+        if declared is None:
+            continue
+        if int(declared) >= first_drift_step:
+            n += 1
+    return n
+
+
 async def run_era(
     env: EpistemicOpsEnv,
     scenario_config: dict,
@@ -106,19 +135,21 @@ async def run_era(
                 "msg": oversight_msg
             })
 
-            era_trajectory.append({
-                "step": step,
-                "agent": "oversight",
-                "action": intervention,
-                "phase": o_info.get("phase", ""),
-            })
-
             # Judge the intervention
             judge_result = await judge.evaluate_intervention(
                 drift_config,
                 env.primary_reasoning_trace,
                 json.dumps(intervention)
             )
+            judge_fallback = bool(judge_result.get("judge_used_fallback"))
+            era_trajectory.append({
+                "step": step,
+                "agent": "oversight",
+                "action": intervention,
+                "phase": o_info.get("phase", ""),
+                "judge_result": judge_result,
+                "judge_fallback": judge_fallback,
+            })
             logger.info(f"  Step {step:2d} │ Judge: targeting={judge_result.get('targeting', 0):.2f}, restraint={judge_result.get('restraint', 0):.2f}")
 
         if action_type == "write_legacy" and step >= max_steps - 2:
@@ -191,13 +222,19 @@ async def run_era(
     logger.info(f"  R_legacy_utility={r_legacy_utility:.3f}  R_leakage={r_leakage:.3f}  R_anti_hack={r_anti_hack:.3f}")
     logger.info(f"  ★ R_total={total['R_total']:.3f}  R_normalized={total['R_normalized']:.4f}")
 
+    first_drift_step = _first_drift_injection_step(env.world.state)
+    drifts_detected = _count_drift_hypotheses_after_fire(
+        env.world.state.hypotheses_declared, first_drift_step
+    )
+
     return {
         "era_id": era_id,
         "steps_taken": step,
         "criteria_met": met_criteria,
         "criteria_total": criteria,
         "drifts_fired": len(env.world.state.drift_events_fired),
-        "drifts_detected": sum(1 for h in env.world.state.hypotheses_declared if "drift" in str(h).lower()),
+        "drifts_detected": drifts_detected,
+        "first_drift_step": first_drift_step,
         "legacy_doc_written": env.current_legacy_doc is not None,
         "legacy_doc": env.current_legacy_doc,
         "oversight_interventions": num_interventions,

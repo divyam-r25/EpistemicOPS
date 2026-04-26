@@ -1,5 +1,7 @@
 # EpistemicOps: Training Agents on Temporal Uncertainty and Socratic Oversight
 
+**Canonical thesis:** Production LLM agents fail when the world changes silently, context does not persist, and recovery depends on answer-giving humans; EpistemicOps trains agents to detect drift, reason under uncertainty, and pass useful memory to the next generation.
+
 What breaks AI agents in production? Three things:
 1. **The world changes:** An API schema updates overnight, and the agent blindly trusts old documentation.
 2. **Context is finite:** Long-running incidents exceed context windows, and agents forget critical realizations.
@@ -37,12 +39,15 @@ R_total = (R_era_task x R_calibration) + R_teacher_delta + R_legacy_utility + R_
 ## Results
 
 Episode-level evaluation (`eval/proof_of_learning.py`, same scenarios and rollout settings for both sides) currently reports:
-- **Drift detection (hypothesis signal):** baseline **0%** vs trained **77.8%** — the trained policy learns to declare hypotheses when APIs fail unexpectedly.
+- **Drift detection (post-injection hypothesis signal):** baseline **0%** vs trained **33.3%** — we only count a “drift” hypothesis after a drift event has actually fired in that era (no credit for speculative wording before silent injection).
 - **Average normalized reward:** baseline **0.296** vs trained **0.345** (composite of task, calibration, teacher delta, legacy utility, leakage, anti-hack).
 - **Criteria completion:** baseline **68.5%** vs trained **72.2%**.
 - **Legacy doc rate:** **100%** for both policies in this eval window (every era ends with a legacy write); the reward model still differentiates **legacy utility** from mere presence.
+- **When drift fires,** trained runs show **100%** precision and recall on drift-era detection in the current proof aggregate (see `eval_results/proof_of_learning.json`).
 
 The GRPO training pipeline (Llama 3.1 8B via Unsloth, 4-bit quantized) trains against this reward signal; re-run the proof script after each training checkpoint to refresh `eval_results/proof_of_learning.json`.
+
+For submission-grade evidence, pair it with `eval_results/proof_run_metadata.json` so judges can verify run mode (checkpoint-required vs fallback demo), config, and provenance in one place.
 
 ## Try it yourself
 

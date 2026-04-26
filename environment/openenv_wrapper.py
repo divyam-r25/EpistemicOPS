@@ -221,7 +221,9 @@ class EpistemicOpsEnv:
             obs = self._build_primary_observation("Reasoning recorded.", None)
             
         elif action_type == "declare_hypothesis":
-            self.world.state.hypotheses_declared.append(payload)
+            # Step after this action completes (advance_step runs immediately after handler).
+            enriched = {**payload, "declared_at_step": self.world.state.step + 1}
+            self.world.state.hypotheses_declared.append(enriched)
             obs = self._build_primary_observation("Hypothesis recorded.", None)
             
         elif action_type == "call_tool":

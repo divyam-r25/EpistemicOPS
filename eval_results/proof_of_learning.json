@@ -15,7 +15,9 @@
     "offline_mode": false,
     "checkpoint_fallback_used": false,
     "checkpoint_fallback_reason": null,
-    "on_checkpoint_error": "fallback_profile"
+    "on_checkpoint_error": "fallback_profile",
+    "proof_mode": "demo",
+    "require_checkpoint": false
   },
   "summary": {
     "baseline": {
@@ -23,22 +25,47 @@
       "avg_criteria_completion": 0.6852,
       "drift_detection_rate": 0.0,
       "incident_resolution_rate": 0.1111,
-      "legacy_doc_rate": 1.0
+      "legacy_doc_rate": 1.0,
+      "drift_true_positive": 0,
+      "drift_false_positive": 0,
+      "drift_false_negative": 0,
+      "drift_true_negative": 27,
+      "drift_precision": 0.0,
+      "drift_recall": 0.0,
+      "judge_interventions_scored": 0,
+      "judge_fallback_count": 0,
+      "judge_fallback_rate": 0.0
     },
     "trained": {
       "avg_reward": 0.3449,
       "avg_criteria_completion": 0.7222,
-      "drift_detection_rate": 0.7778,
+      "drift_detection_rate": 0.3333,
       "incident_resolution_rate": 0.2222,
-      "legacy_doc_rate": 1.0
+      "legacy_doc_rate": 1.0,
+      "drift_true_positive": 9,
+      "drift_false_positive": 0,
+      "drift_false_negative": 0,
+      "drift_true_negative": 18,
+      "drift_precision": 1.0,
+      "drift_recall": 1.0,
+      "judge_interventions_scored": 6,
+      "judge_fallback_count": 6,
+      "judge_fallback_rate": 1.0
     }
   },
   "deltas": {
     "avg_reward": 0.0491,
     "avg_criteria_completion": 0.037,
-    "drift_detection_rate": 0.7778,
+    "drift_detection_rate": 0.3333,
     "incident_resolution_rate": 0.1111,
-    "legacy_doc_rate": 0.0
+    "legacy_doc_rate": 0.0,
+    "drift_precision": 1.0,
+    "drift_recall": 1.0,
+    "judge_fallback_rate": 1.0
+  },
+  "consistency_checks": {
+    "baseline": [],
+    "trained": []
   },
   "examples": {
     "before": "- step 0: ready_to_operate | {\"world_model_summary\": \"Ready. Legacy doc available: False\"}\n- step 1: call_tool | {\"tool\": \"get_incident_status\", \"args\": {\"incident_id\": \"INC-2041\"}}\n- step 2: call_tool | {\"tool\": \"get_incident_status\", \"args\": {\"incident_id\": \"INC-2041\"}}\n- step 3: call_tool | {\"tool\": \"resolve_incident\", \"args\": {\"incident_id\": \"INC-2041\", \"resolution_notes\": \"Applied standard remedia...\n- step 4: call_tool | {\"tool\": \"resolve_incident\", \"args\": {\"incident_id\": \"INC-2041\", \"resolution_notes\": \"Applied standard remedia...\n- step 5: declare_task_complete | {\"outcome\": \"resolved\", \"summary\": \"Resolved using standard playbook.\"}\n- step 6: write_legacy | {\"content\": \"SECTION 1: WORLD STATE AT ERA END\\nInvestigated issue with standard workflow.\\n\\nSECTION 2: TRUST...\n- step 7: end_era | {}",

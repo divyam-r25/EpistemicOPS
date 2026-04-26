@@ -1,5 +1,7 @@
 # EpistemicOps: 3-Minute Pitch
 
+**Canonical thesis:** Production LLM agents fail when the world changes silently, context does not persist, and recovery depends on answer-giving humans; EpistemicOps trains agents to detect drift, reason under uncertainty, and pass useful memory to the next generation.
+
 ## Slide 1: The Three Failures of Production AI
 *(Visual: Three interlocking broken gears: "Stale Knowledge", "Context Wipe", "No Self-Diagnosis")*
 
@@ -31,7 +33,7 @@ At the end of each era, the Primary Agent writes a Legacy Document — two thous
 *(Visual: Reward curve per era, highlighting drift detection and Socratic Delta)*
 
 **Speaker Notes (2:00 - 3:00):**
-Here is what the numbers say today on the same scenarios and settings (`eval/proof_of_learning.py`): the baseline side shows **0%** drift detection via structured hypotheses, while the trained side reaches about **78%** — that is the headline signal for silent API drift.
+Here is what the numbers say today on the same scenarios and settings (`eval/proof_of_learning.py`): the baseline shows **0%** post-injection drift detection (hypotheses that mention drift only after a drift event has fired). The trained policy reaches about **33%** of eras with that signal, and when drift actually fires it is detected with **100%** precision in the current proof run — that is the honest headline for silent API drift.
 
 The composite normalized reward moves from about **0.30** to **0.34** in the same runbook — smaller in absolute terms because the reward stacks multiple objectives, but the drift-detection delta is unambiguous.
 

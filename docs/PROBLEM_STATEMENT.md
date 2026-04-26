@@ -41,7 +41,7 @@
 
 ### The One-Sentence Thesis
 
-> Three problems everyone is trying to solve separately — **what to remember across context windows**, **what information to trust given its age**, and **how to make another agent better without giving it the answer** — are actually the same problem at different scales. EpistemicOps is the first training environment that treats them as one.
+> Production LLM agents fail when the world changes silently, context does not persist, and recovery depends on answer-giving humans; EpistemicOps trains agents to detect drift, reason under uncertainty, and pass useful memory to the next generation.
 
 ### The Three Mechanisms
 
@@ -1614,11 +1614,11 @@ def measure_legacy_utility(scenario_id, era_id, legacy_doc, base_model_checkpoin
 
 ### Minute 3: The Results (2:00 – 3:00)
 
-> "Here is what our base model does before training: it completes 45% of era tasks, it detects exactly 8% of drift events, and its Legacy Documents improve the next generation's performance by less than 5%.
+> "Here is what the current baseline does in our proof run (`eval/proof_of_learning.py`): average normalized reward around 0.296, criteria completion around 68.5%, and 0% drift detection from structured hypotheses.
 >
-> After training: 72% task completion, 55% drift detection, and Legacy Documents that improve the next generation by 43% on average.
+> In the same environment settings, the trained side reaches about 0.345 average normalized reward, 72.2% criteria completion, and 33.3% drift detection — counting only hypotheses that mention drift after a drift event has fired in that era.
 >
-> But the number we are most proud of is this one: when the Oversight Agent intervenes, the Primary Agent improves its recovery performance by 28% per session — and the Oversight Agent does it without ever giving the answer.
+> The headline behavioral shift is drift handling: the trained policy starts declaring concrete drift hypotheses and adapting its actions instead of repeating brittle runbook assumptions.
 >
 > EpistemicOps is not just an environment. It is a proof of concept that memory compression, temporal trust, and pedagogical transfer can be trained together — because they are the same skill. Thank you."
 

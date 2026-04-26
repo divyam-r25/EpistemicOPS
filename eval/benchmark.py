@@ -8,6 +8,7 @@ show judges: drift detection rate, legacy utility, task completion.
 import json
 import asyncio
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -24,13 +25,21 @@ HELD_OUT_SCENARIO = "invisible_outage"
 NUM_EPISODES = 5  # Run 5 episodes to average variance
 
 
+def _first_drift_injection_step(state) -> int | None:
+    steps = []
+    for info in state.services.values():
+        if info.get("status") == "DRIFTED" and "drift_fired_at_step" in info:
+            steps.append(int(info["drift_fired_at_step"]))
+    return min(steps) if steps else None
+
+
 async def run_episode(env: EpistemicOpsEnv, scenario_config: dict,
                       agent, era_id: int) -> dict:
     """Run one complete era and return metrics."""
     obs = env.reset(scenario_config, era_id=era_id)
     done = False
     step = 0
-    drifts_detected = 0
+    drift_hypothesis_count = 0
     hypotheses_declared = []
     conversation_history = []
 
@@ -47,10 +56,14 @@ async def run_episode(env: EpistemicOpsEnv, scenario_config: dict,
         obs, reward, done, info = await env.step("primary", action)
         conversation_history.append({"role": "environment", "obs": obs})
 
-        # Count correct drift detections
-        if (action.get("action_type") == "declare_hypothesis" and
-                "drift" in action["payload"].get("hypothesis", "").lower()):
-            drifts_detected += 1
+        # Count drift hypotheses only after a drift has actually fired (same as run_episode).
+        if action.get("action_type") == "declare_hypothesis":
+            hypo = action["payload"].get("hypothesis", "").lower()
+            if "drift" in hypo:
+                first = _first_drift_injection_step(env.world.state)
+                post_step = info.get("step")
+                if first is not None and post_step is not None and int(post_step) >= int(first):
+                    drift_hypothesis_count += 1
 
         step += 1
 
@@ -63,12 +76,23 @@ async def run_episode(env: EpistemicOpsEnv, scenario_config: dict,
         await env.step("primary", legacy_action)
         await env.step("primary", {"action_type": "end_era", "payload": {}})
 
+    total_drifts = len(env.world.state.drift_events_fired)
+    has_drift = total_drifts > 0
+    declared_drift = drift_hypothesis_count > 0
+    drift_tp = 1 if has_drift and declared_drift else 0
+    drift_fp = 1 if (not has_drift) and declared_drift else 0
+    drift_fn = 1 if has_drift and (not declared_drift) else 0
+    drift_tn = 1 if (not has_drift) and (not declared_drift) else 0
     return {
         "era_id": era_id,
         "steps_taken": step,
-        "drifts_detected": drifts_detected,
-        "total_drifts": len(env.world.state.drift_events_fired),
-        "drift_detection_rate": drifts_detected / max(1, len(env.world.state.drift_events_fired)),
+        "drift_hypothesis_count": drift_hypothesis_count,
+        "total_drifts": total_drifts,
+        "drift_detection_rate": drift_tp / max(1, drift_tp + drift_fn),
+        "drift_tp": drift_tp,
+        "drift_fp": drift_fp,
+        "drift_fn": drift_fn,
+        "drift_tn": drift_tn,
         "legacy_doc_written": env.current_legacy_doc is not None,
         "legacy_doc_length": len(env.current_legacy_doc or ""),
     }
@@ -96,17 +120,24 @@ async def run_benchmark(agent, label: str) -> dict:
         all_results.append(episode_results)
 
     # Aggregate
-    all_drift_rates = [r["drift_detection_rate"]
-                       for ep in all_results for r in ep]
+    all_tp = [r["drift_tp"] for ep in all_results for r in ep]
+    all_fp = [r["drift_fp"] for ep in all_results for r in ep]
+    all_fn = [r["drift_fn"] for ep in all_results for r in ep]
     all_legacy = [r["legacy_doc_written"]
                   for ep in all_results for r in ep]
+    tp = sum(all_tp)
+    fp = sum(all_fp)
+    fn = sum(all_fn)
 
     summary = {
         "label": label,
         "scenario": HELD_OUT_SCENARIO,
         "num_episodes": NUM_EPISODES,
-        "avg_drift_detection_rate": sum(all_drift_rates) / len(all_drift_rates),
+        "avg_drift_detection_rate": tp / max(1, tp + fn),
+        "drift_precision": tp / max(1, tp + fp),
+        "drift_recall": tp / max(1, tp + fn),
         "legacy_doc_completion_rate": sum(all_legacy) / len(all_legacy),
+        "offline_mode": os.getenv("EPISTEMICOPS_OFFLINE", "").lower() == "true",
         "raw_results": all_results,
     }
 
@@ -130,6 +161,12 @@ def print_comparison(baseline: dict, trained: dict):
         ("Drift Detection Rate",
          baseline["avg_drift_detection_rate"],
          trained["avg_drift_detection_rate"]),
+        ("Drift Precision",
+         baseline.get("drift_precision", 0.0),
+         trained.get("drift_precision", 0.0)),
+        ("Drift Recall",
+         baseline.get("drift_recall", 0.0),
+         trained.get("drift_recall", 0.0)),
         ("Legacy Doc Completion",
          baseline["legacy_doc_completion_rate"],
          trained["legacy_doc_completion_rate"]),

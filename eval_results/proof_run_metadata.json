@@ -1,0 +1,53 @@
+{
+  "runtime": {
+    "timestamp_utc": "2026-04-26T03:40:23.912593+00:00",
+    "python_version": "3.14.3",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "matplotlib_version": "3.10.8",
+    "git_commit": "e3ee48aeddc16e18d4a5024b25c9274d8b9276f7"
+  },
+  "requested_config": {
+    "scenarios": [
+      "cascading_incident",
+      "deployment_disaster",
+      "invisible_outage"
+    ],
+    "runs_per_scenario": 3,
+    "eras_per_run": 3,
+    "baseline_profile": "baseline",
+    "trained_profile": "trained",
+    "trained_agent_source": "profile",
+    "trained_checkpoint_path": null,
+    "proof_mode": "demo",
+    "require_checkpoint": false,
+    "on_checkpoint_error": "fallback_profile"
+  },
+  "effective_config": {
+    "scenarios": [
+      "cascading_incident",
+      "deployment_disaster",
+      "invisible_outage"
+    ],
+    "runs_per_scenario": 3,
+    "eras_per_run": 3,
+    "baseline_profile": "baseline",
+    "trained_profile": "trained",
+    "trained_agent_source": "profile",
+    "trained_checkpoint_path": null,
+    "mode": "profile_vs_profile",
+    "offline_mode": false,
+    "checkpoint_fallback_used": false,
+    "checkpoint_fallback_reason": null,
+    "on_checkpoint_error": "fallback_profile",
+    "proof_mode": "demo",
+    "require_checkpoint": false
+  },
+  "artifact_paths": {
+    "proof_json": "eval_results/proof_of_learning.json",
+    "metadata_json": "eval_results/proof_run_metadata.json",
+    "behavior_examples": "eval_results/proof_behavior_examples.md",
+    "reward_curve": "plots/proof_reward_curve.png",
+    "metric_chart": "plots/proof_before_vs_after.png"
+  },
+  "warnings": []
+}

@@ -125,8 +125,8 @@ OUTPUT FORMAT (JSON only):
             "adaptation": 0.5,
             "overall": 0.5,
             "leakage_severity": 0.5,
-            "brief_rationale": "API call failed or timed out. Fallback scores applied."
-            
+            "brief_rationale": "Judge unavailable: neutral scores applied.",
+            "judge_used_fallback": True,
         }
 
     async def evaluate_intervention(self, drift_config: dict, primary_trace: list, oversight_response: str) -> dict:
@@ -176,7 +176,10 @@ OUTPUT FORMAT (JSON only):
         try:
             # Simple cleanup for markdown json blocks
             text = text.replace("```json", "").replace("```", "").strip()
-            return json.loads(text)
+            data = json.loads(text)
+            if isinstance(data, dict) and "judge_used_fallback" not in data:
+                data["judge_used_fallback"] = False
+            return data
         except json.JSONDecodeError:
             logger.error(f"Failed to parse Judge JSON response: {text}")
             return self._fallback_score()

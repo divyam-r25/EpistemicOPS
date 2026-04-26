@@ -22,7 +22,10 @@ import os
 import re
 import statistics
 import sys
+import platform
+import subprocess
 from pathlib import Path
+from datetime import datetime, timezone
 
 import matplotlib
 
@@ -38,9 +41,49 @@ DEFAULT_SCENARIOS = ["cascading_incident", "deployment_disaster", "invisible_out
 DEFAULT_ERAS_PER_RUN = 3
 DEFAULT_RUNS_PER_SCENARIO = 3
 
+# Deltas only for judge-facing rates (avoid confusing count diffs).
+_DELTA_KEYS = (
+    "avg_reward",
+    "avg_criteria_completion",
+    "drift_detection_rate",
+    "incident_resolution_rate",
+    "legacy_doc_rate",
+    "drift_precision",
+    "drift_recall",
+    "judge_fallback_rate",
+)
+
 
 def _safe_mean(values):
     return statistics.fmean(values) if values else 0.0
+
+
+def _safe_div(numerator: float, denominator: float) -> float:
+    return (numerator / denominator) if denominator else 0.0
+
+
+def _get_repo_commit(repo_root: Path) -> str:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return result.stdout.strip()
+    except Exception:
+        return "unknown"
+
+
+def _build_runtime_metadata(repo_root: Path) -> dict:
+    return {
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "python_version": platform.python_version(),
+        "platform": platform.platform(),
+        "matplotlib_version": getattr(matplotlib, "__version__", "unknown"),
+        "git_commit": _get_repo_commit(repo_root),
+    }
 
 
 class CheckpointPrimaryAgent:
@@ -120,18 +163,39 @@ def _aggregate(policy_results):
     incident_resolved = []
     legacy_written = []
     criteria_fraction = []
+    drift_tp = 0
+    drift_fp = 0
+    drift_fn = 0
+    drift_tn = 0
+    judge_total = 0
+    judge_fallback = 0
 
     for run in policy_results:
         episode = run["episode"]
         for era in episode.get("era_results", []):
             reward = era.get("reward", {})
             rewards.append(float(reward.get("R_normalized", 0.0)))
-            drift_detected.append(1 if era.get("drifts_detected", 0) > 0 else 0)
+            has_drift = era.get("drifts_fired", 0) > 0
+            declared_drift = era.get("drifts_detected", 0) > 0
+            drift_detected.append(1 if declared_drift else 0)
+            if has_drift and declared_drift:
+                drift_tp += 1
+            elif (not has_drift) and declared_drift:
+                drift_fp += 1
+            elif has_drift and (not declared_drift):
+                drift_fn += 1
+            else:
+                drift_tn += 1
             incident_resolved.append(1 if "incident_resolved" in era.get("criteria_met", []) else 0)
             legacy_written.append(1 if era.get("legacy_doc_written") else 0)
             total_criteria = len(era.get("criteria_total", []))
             met_criteria = len(era.get("criteria_met", []))
             criteria_fraction.append((met_criteria / total_criteria) if total_criteria else 0.0)
+            for step in era.get("trajectory", []):
+                if step.get("agent") == "oversight":
+                    judge_total += 1
+                    if step.get("judge_fallback", False):
+                        judge_fallback += 1
 
     return {
         "avg_reward": round(_safe_mean(rewards), 4),
@@ -139,6 +203,15 @@ def _aggregate(policy_results):
         "drift_detection_rate": round(_safe_mean(drift_detected), 4),
         "incident_resolution_rate": round(_safe_mean(incident_resolved), 4),
         "legacy_doc_rate": round(_safe_mean(legacy_written), 4),
+        "drift_true_positive": drift_tp,
+        "drift_false_positive": drift_fp,
+        "drift_false_negative": drift_fn,
+        "drift_true_negative": drift_tn,
+        "drift_precision": round(_safe_div(drift_tp, drift_tp + drift_fp), 4),
+        "drift_recall": round(_safe_div(drift_tp, drift_tp + drift_fn), 4),
+        "judge_interventions_scored": judge_total,
+        "judge_fallback_count": judge_fallback,
+        "judge_fallback_rate": round(_safe_div(judge_fallback, judge_total), 4),
     }
 
 
@@ -161,6 +234,26 @@ def _extract_behavior_examples(baseline_episode, trained_episode):
     before_text = summarize_era_actions(base_era)
     after_text = summarize_era_actions(trained_era)
     return before_text, after_text
+
+
+def _run_consistency_checks(policy_results):
+    warnings = []
+    for run in policy_results:
+        episode = run.get("episode", {})
+        scenario_id = run.get("scenario_id", "unknown")
+        run_idx = run.get("run_idx", "?")
+        for era in episode.get("era_results", []):
+            fired = int(era.get("drifts_fired", 0))
+            detected = int(era.get("drifts_detected", 0))
+            if fired == 0 and detected > 0:
+                warnings.append(
+                    f"{scenario_id} run {run_idx} era {era.get('era_id', '?')}: detected={detected} while fired=0"
+                )
+            if fired > 0 and detected == 0:
+                warnings.append(
+                    f"{scenario_id} run {run_idx} era {era.get('era_id', '?')}: fired={fired} but no drift hypothesis declared"
+                )
+    return warnings
 
 
 def _plot_reward_curve(results, output_path: Path):
@@ -336,16 +429,34 @@ def _parse_args():
         choices=["fallback_profile", "fail"],
         help="Behavior when checkpoint mode cannot start (e.g., missing torch/checkpoint).",
     )
+    parser.add_argument(
+        "--proof-mode",
+        default="demo",
+        choices=["demo", "final"],
+        help="demo allows fallback; final enforces checkpoint-backed evidence.",
+    )
+    parser.add_argument(
+        "--require-checkpoint",
+        action="store_true",
+        help="Fail closed unless trained side runs from a checkpoint.",
+    )
     return parser.parse_args()
 
 
 async def main():
     args = _parse_args()
     scenarios = [s.strip() for s in args.scenarios.split(",") if s.strip()]
+    repo_root = Path(__file__).parent.parent
     if not scenarios:
         raise ValueError("No scenarios provided.")
+    if args.proof_mode == "final":
+        args.require_checkpoint = True
     if args.trained_agent_source == "checkpoint" and not args.trained_checkpoint_path:
         raise ValueError("Provide --trained-checkpoint-path when using checkpoint mode.")
+    if args.require_checkpoint and args.trained_agent_source != "checkpoint":
+        raise ValueError("--require-checkpoint requires --trained-agent-source=checkpoint.")
+    if args.require_checkpoint:
+        args.on_checkpoint_error = "fail"
 
     print("Running baseline policy...")
     baseline_runs = await _run_policy(
@@ -394,6 +505,10 @@ async def main():
         "baseline": _aggregate(baseline_runs),
         "trained": _aggregate(trained_runs),
     }
+    consistency = {
+        "baseline": _run_consistency_checks(baseline_runs),
+        "trained": _run_consistency_checks(trained_runs),
+    }
 
     # Use the same scenario (cascading_incident, run 1) for behavior snapshots.
     preferred = "cascading_incident" if "cascading_incident" in scenarios else scenarios[0]
@@ -417,12 +532,16 @@ async def main():
             "checkpoint_fallback_used": fallback_reason is not None,
             "checkpoint_fallback_reason": fallback_reason,
             "on_checkpoint_error": args.on_checkpoint_error,
+            "proof_mode": args.proof_mode,
+            "require_checkpoint": args.require_checkpoint,
         },
         "summary": summary,
         "deltas": {
             key: round(summary["trained"][key] - summary["baseline"][key], 4)
-            for key in summary["baseline"].keys()
+            for key in _DELTA_KEYS
+            if key in summary["baseline"] and key in summary["trained"]
         },
+        "consistency_checks": consistency,
         "examples": {
             "before": before_actions,
             "after": after_actions,
@@ -431,13 +550,41 @@ async def main():
         },
     }
 
-    eval_dir = Path(__file__).parent.parent / "eval_results"
-    plots_dir = Path(__file__).parent.parent / "plots"
+    runtime_meta = _build_runtime_metadata(repo_root)
+    run_metadata = {
+        "runtime": runtime_meta,
+        "requested_config": {
+            "scenarios": scenarios,
+            "runs_per_scenario": args.runs_per_scenario,
+            "eras_per_run": args.eras_per_run,
+            "baseline_profile": args.baseline_profile,
+            "trained_profile": args.trained_profile,
+            "trained_agent_source": args.trained_agent_source,
+            "trained_checkpoint_path": args.trained_checkpoint_path or None,
+            "proof_mode": args.proof_mode,
+            "require_checkpoint": args.require_checkpoint,
+            "on_checkpoint_error": args.on_checkpoint_error,
+        },
+        "effective_config": output["config"],
+        "artifact_paths": {
+            "proof_json": "eval_results/proof_of_learning.json",
+            "metadata_json": "eval_results/proof_run_metadata.json",
+            "behavior_examples": "eval_results/proof_behavior_examples.md",
+            "reward_curve": "plots/proof_reward_curve.png",
+            "metric_chart": "plots/proof_before_vs_after.png",
+        },
+        "warnings": consistency["baseline"] + consistency["trained"],
+    }
+
+    eval_dir = repo_root / "eval_results"
+    plots_dir = repo_root / "plots"
     eval_dir.mkdir(parents=True, exist_ok=True)
     plots_dir.mkdir(parents=True, exist_ok=True)
 
     with open(eval_dir / "proof_of_learning.json", "w", encoding="utf-8") as f:
         json.dump(output, f, indent=2)
+    with open(eval_dir / "proof_run_metadata.json", "w", encoding="utf-8") as f:
+        json.dump(run_metadata, f, indent=2)
 
     with open(eval_dir / "proof_behavior_examples.md", "w", encoding="utf-8") as f:
         f.write("# Behavioral Difference: Before vs After\n\n")
@@ -451,11 +598,16 @@ async def main():
 
     print("Saved:")
     print(f"  - {eval_dir / 'proof_of_learning.json'}")
+    print(f"  - {eval_dir / 'proof_run_metadata.json'}")
     print(f"  - {eval_dir / 'proof_behavior_examples.md'}")
     print(f"  - {plots_dir / 'proof_reward_curve.png'}")
     print(f"  - {plots_dir / 'proof_before_vs_after.png'}")
     print("\nSummary:")
     print(json.dumps(output["summary"], indent=2))
+    if run_metadata["warnings"]:
+        print("\nConsistency warnings:")
+        for warning in run_metadata["warnings"]:
+            print(f"  - {warning}")
 
 
 if __name__ == "__main__":

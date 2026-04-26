@@ -192,8 +192,17 @@ def load_proof_results():
     return {}
 
 
+def load_proof_metadata():
+    path = Path(__file__).parent / "eval_results" / "proof_run_metadata.json"
+    if path.exists():
+        with open(path) as f:
+            return json.load(f)
+    return {}
+
+
 def on_load_proof():
     proof = load_proof_results()
+    metadata = load_proof_metadata()
     if not proof:
         return (
             "No proof file found. Run `python eval/proof_of_learning.py` first.",
@@ -208,11 +217,15 @@ def on_load_proof():
     deltas = proof.get("deltas", {})
     examples = proof.get("examples", {})
     config = proof.get("config", {})
+    runtime = metadata.get("runtime", {})
+    warnings = metadata.get("warnings", [])
 
     table = (
         "## Baseline vs Trained\n"
         f"- Mode: `{config.get('mode', 'unknown')}`\n"
         f"- Trained source: `{config.get('trained_agent_source', 'profile')}`\n"
+        f"- Checkpoint required: `{config.get('require_checkpoint', False)}`\n"
+        f"- Fallback used: `{config.get('checkpoint_fallback_used', False)}`\n"
         f"- Scenarios: `{', '.join(config.get('scenarios', []))}`\n"
         f"- Runs per scenario: `{config.get('runs_per_scenario', 'n/a')}` | Eras per run: `{config.get('eras_per_run', 'n/a')}`\n\n"
         "| Metric | Baseline | Trained | Delta |\n"
@@ -220,9 +233,21 @@ def on_load_proof():
         f"| Avg Reward | {baseline.get('avg_reward', 0):.3f} | {trained.get('avg_reward', 0):.3f} | {deltas.get('avg_reward', 0):+.3f} |\n"
         f"| Criteria Completion | {baseline.get('avg_criteria_completion', 0):.3f} | {trained.get('avg_criteria_completion', 0):.3f} | {deltas.get('avg_criteria_completion', 0):+.3f} |\n"
         f"| Drift Detection Rate | {baseline.get('drift_detection_rate', 0):.3f} | {trained.get('drift_detection_rate', 0):.3f} | {deltas.get('drift_detection_rate', 0):+.3f} |\n"
+        f"| Drift Precision | {baseline.get('drift_precision', 0):.3f} | {trained.get('drift_precision', 0):.3f} | {deltas.get('drift_precision', 0):+.3f} |\n"
+        f"| Drift Recall | {baseline.get('drift_recall', 0):.3f} | {trained.get('drift_recall', 0):.3f} | {deltas.get('drift_recall', 0):+.3f} |\n"
         f"| Incident Resolution Rate | {baseline.get('incident_resolution_rate', 0):.3f} | {trained.get('incident_resolution_rate', 0):.3f} | {deltas.get('incident_resolution_rate', 0):+.3f} |\n"
         f"| Legacy Doc Rate | {baseline.get('legacy_doc_rate', 0):.3f} | {trained.get('legacy_doc_rate', 0):.3f} | {deltas.get('legacy_doc_rate', 0):+.3f} |\n"
+        f"| Judge Fallback Rate | {baseline.get('judge_fallback_rate', 0):.3f} | {trained.get('judge_fallback_rate', 0):.3f} | {deltas.get('judge_fallback_rate', 0):+.3f} |\n"
     )
+    if runtime:
+        table += (
+            "\n### Provenance\n"
+            f"- Commit: `{runtime.get('git_commit', 'unknown')}`\n"
+            f"- Timestamp (UTC): `{runtime.get('timestamp_utc', 'unknown')}`\n"
+            f"- Python: `{runtime.get('python_version', 'unknown')}` | Platform: `{runtime.get('platform', 'unknown')}`\n"
+        )
+    if warnings:
+        table += "\n### Consistency Warnings\n" + "\n".join([f"- {w}" for w in warnings[:8]])
 
     behavior_md = (
         "## Behavioral Difference\n\n"
@@ -311,6 +336,155 @@ def on_select_era(file_path, era_idx):
     era = eras[idx]
     return build_trajectory_table(era), create_component_radar(era)
 
+
+def _safe_episode(path: str):
+    if not path or not Path(path).exists():
+        return {}
+    return load_episode(path)
+
+
+def _era_by_id(episode: dict, era_number: int) -> dict:
+    for era in episode.get("era_results", []):
+        if int(era.get("era_id", -1)) == int(era_number):
+            return era
+    eras = episode.get("era_results", [])
+    if eras:
+        idx = max(0, min(int(era_number) - 1, len(eras) - 1))
+        return eras[idx]
+    return {}
+
+
+def _event_markers(era: dict) -> dict:
+    drift_step = None
+    oversight_step = None
+    recovery_step = None
+    for item in era.get("trajectory", []):
+        if drift_step is None and item.get("phase") == "DRIFT_INJECTION" and item.get("agent") == "primary":
+            drift_step = item.get("step")
+        if oversight_step is None and item.get("agent") == "oversight":
+            oversight_step = item.get("step")
+        if oversight_step is not None and recovery_step is None:
+            if item.get("agent") == "primary" and item.get("step", -1) > oversight_step:
+                recovery_step = item.get("step")
+    return {
+        "drift_step": drift_step,
+        "oversight_step": oversight_step,
+        "recovery_step": recovery_step,
+    }
+
+
+def _trajectory_until_step(era: dict, step_limit: int) -> pd.DataFrame:
+    rows = []
+    for entry in era.get("trajectory", []):
+        if entry.get("step", 0) > step_limit:
+            continue
+        action = entry.get("action", {})
+        rows.append(
+            {
+                "Step": entry.get("step", 0),
+                "Agent": entry.get("agent", "unknown"),
+                "Action": action.get("action_type", "?"),
+                "Phase": entry.get("phase", ""),
+                "Details": json.dumps(action.get("payload", {}))[:150],
+            }
+        )
+    return pd.DataFrame(rows) if rows else pd.DataFrame(columns=["Step", "Agent", "Action", "Phase", "Details"])
+
+
+def _max_step(era: dict) -> int:
+    return max([int(item.get("step", 0)) for item in era.get("trajectory", [])] + [0])
+
+
+def _compare_event_md(base_markers: dict, trained_markers: dict) -> str:
+    return (
+        "### Event Jump Cards\n"
+        f"- First drift step: baseline `{base_markers.get('drift_step')}`, trained `{trained_markers.get('drift_step')}`\n"
+        f"- First oversight step: baseline `{base_markers.get('oversight_step')}`, trained `{trained_markers.get('oversight_step')}`\n"
+        f"- First recovery-after-oversight step: baseline `{base_markers.get('recovery_step')}`, trained `{trained_markers.get('recovery_step')}`\n"
+    )
+
+
+def on_load_compare(baseline_path, trained_path, era_number):
+    baseline_episode = _safe_episode(baseline_path)
+    trained_episode = _safe_episode(trained_path)
+    if not baseline_episode or not trained_episode:
+        empty_df = pd.DataFrame(columns=["Step", "Agent", "Action", "Phase", "Details"])
+        return "Missing baseline/trained episode path.", "", empty_df, empty_df, None, None, gr.update(maximum=1, value=0)
+
+    baseline_era = _era_by_id(baseline_episode, int(era_number))
+    trained_era = _era_by_id(trained_episode, int(era_number))
+    base_reward = baseline_era.get("reward", {}).get("R_normalized", 0.0)
+    trained_reward = trained_era.get("reward", {}).get("R_normalized", 0.0)
+
+    overview = (
+        "## Side-by-Side Era Compare\n"
+        f"- Era: `{int(era_number)}`\n"
+        f"- Baseline R_norm: `{base_reward:.4f}`\n"
+        f"- Trained R_norm: `{trained_reward:.4f}`\n"
+        f"- Delta: `{trained_reward - base_reward:+.4f}`\n"
+        f"- Baseline drifts/oversight: `{baseline_era.get('drifts_fired', 0)}` / `{baseline_era.get('oversight_interventions', 0)}`\n"
+        f"- Trained drifts/oversight: `{trained_era.get('drifts_fired', 0)}` / `{trained_era.get('oversight_interventions', 0)}`\n"
+    )
+
+    base_markers = _event_markers(baseline_era)
+    trained_markers = _event_markers(trained_era)
+    events_md = _compare_event_md(base_markers, trained_markers)
+
+    step_cap = max(_max_step(baseline_era), _max_step(trained_era))
+    baseline_df = _trajectory_until_step(baseline_era, step_cap)
+    trained_df = _trajectory_until_step(trained_era, step_cap)
+    return (
+        overview,
+        events_md,
+        baseline_df,
+        trained_df,
+        create_component_radar(baseline_era),
+        create_component_radar(trained_era),
+        gr.update(maximum=max(1, step_cap), value=step_cap),
+    )
+
+
+def on_compare_step(baseline_path, trained_path, era_number, step_limit):
+    baseline_episode = _safe_episode(baseline_path)
+    trained_episode = _safe_episode(trained_path)
+    if not baseline_episode or not trained_episode:
+        empty_df = pd.DataFrame(columns=["Step", "Agent", "Action", "Phase", "Details"])
+        return empty_df, empty_df
+
+    baseline_era = _era_by_id(baseline_episode, int(era_number))
+    trained_era = _era_by_id(trained_episode, int(era_number))
+    step_limit = int(step_limit)
+    return _trajectory_until_step(baseline_era, step_limit), _trajectory_until_step(trained_era, step_limit)
+
+
+def jump_to_event(baseline_path, trained_path, era_number, event_name):
+    baseline_episode = _safe_episode(baseline_path)
+    trained_episode = _safe_episode(trained_path)
+    baseline_era = _era_by_id(baseline_episode, int(era_number))
+    trained_era = _era_by_id(trained_episode, int(era_number))
+    base_markers = _event_markers(baseline_era)
+    trained_markers = _event_markers(trained_era)
+    candidates = [
+        base_markers.get(event_name),
+        trained_markers.get(event_name),
+    ]
+    valid = [c for c in candidates if c is not None]
+    if not valid:
+        return gr.update()
+    return gr.update(value=max(valid))
+
+
+def find_proof_episode_paths():
+    proof = load_proof_results()
+    examples = proof.get("examples", {}) if proof else {}
+    baseline_rel = examples.get("baseline_episode", "")
+    trained_rel = examples.get("trained_episode", "")
+    root = Path(__file__).parent
+    baseline_path = str(root / baseline_rel) if baseline_rel else ""
+    trained_path = str(root / trained_rel) if trained_rel else ""
+    return baseline_path, trained_path
+
+
 def on_run_simulation(scenario_id, num_eras):
     try:
         from run_episode import run_full_episode
@@ -332,6 +506,7 @@ def on_run_simulation(scenario_id, num_eras):
 def build_ui():
     default_path = find_default_episode()
     baseline = load_baseline_results()
+    baseline_compare_default, trained_compare_default = find_proof_episode_paths()
 
     with gr.Blocks(
         title="EpistemicOps Dashboard",
@@ -367,6 +542,72 @@ def build_ui():
 
             load_btn.click(on_load_episode, inputs=[episode_path], outputs=[overview_md, era_summaries_md, reward_chart, timeline_chart, raw_json])
             drill_btn.click(on_select_era, inputs=[episode_path, era_selector], outputs=[trajectory_table, radar_chart])
+
+        with gr.Tab("🆚 Compare Replay"):
+            gr.Markdown("### Baseline vs Trained (shared-step replay)")
+            with gr.Row():
+                baseline_compare_path = gr.Textbox(
+                    label="Baseline Episode Path",
+                    value=baseline_compare_default,
+                    placeholder="episodes/baseline_cascading_incident_run1.json",
+                    scale=3,
+                )
+                trained_compare_path = gr.Textbox(
+                    label="Trained Episode Path",
+                    value=trained_compare_default,
+                    placeholder="episodes/trained_cascading_incident_run1.json",
+                    scale=3,
+                )
+            with gr.Row():
+                compare_era = gr.Number(label="Era Number", value=2, precision=0, minimum=1)
+                compare_load_btn = gr.Button("Load Compare", variant="primary")
+            compare_overview = gr.Markdown()
+            compare_events = gr.Markdown()
+            with gr.Row():
+                jump_drift_btn = gr.Button("Jump: First Drift")
+                jump_oversight_btn = gr.Button("Jump: First Oversight")
+                jump_recovery_btn = gr.Button("Jump: First Recovery")
+            compare_step_slider = gr.Slider(minimum=0, maximum=1, value=0, step=1, label="Replay Step (shared)")
+            with gr.Row():
+                baseline_compare_table = gr.Dataframe(label="Baseline Trajectory (up to step)")
+                trained_compare_table = gr.Dataframe(label="Trained Trajectory (up to step)")
+            with gr.Row():
+                baseline_compare_radar = gr.Plot(label="Baseline Era Components")
+                trained_compare_radar = gr.Plot(label="Trained Era Components")
+
+            compare_load_btn.click(
+                on_load_compare,
+                inputs=[baseline_compare_path, trained_compare_path, compare_era],
+                outputs=[
+                    compare_overview,
+                    compare_events,
+                    baseline_compare_table,
+                    trained_compare_table,
+                    baseline_compare_radar,
+                    trained_compare_radar,
+                    compare_step_slider,
+                ],
+            )
+            compare_step_slider.change(
+                on_compare_step,
+                inputs=[baseline_compare_path, trained_compare_path, compare_era, compare_step_slider],
+                outputs=[baseline_compare_table, trained_compare_table],
+            )
+            jump_drift_btn.click(
+                lambda b, t, e: jump_to_event(b, t, e, "drift_step"),
+                inputs=[baseline_compare_path, trained_compare_path, compare_era],
+                outputs=[compare_step_slider],
+            )
+            jump_oversight_btn.click(
+                lambda b, t, e: jump_to_event(b, t, e, "oversight_step"),
+                inputs=[baseline_compare_path, trained_compare_path, compare_era],
+                outputs=[compare_step_slider],
+            )
+            jump_recovery_btn.click(
+                lambda b, t, e: jump_to_event(b, t, e, "recovery_step"),
+                inputs=[baseline_compare_path, trained_compare_path, compare_era],
+                outputs=[compare_step_slider],
+            )
 
         with gr.Tab("🚀 Live Simulation"):
             gr.Markdown("### Run a simulation episode (offline mode — no Docker needed)")
@@ -413,7 +654,13 @@ def build_ui():
             gr.Markdown("""
 ## What is EpistemicOps?
 
-EpistemicOps is a Reinforcement Learning environment that trains AI agents to handle three critical production failure modes simultaneously:
+Production LLM agents fail when the world changes silently, context does not persist, and recovery depends on answer-giving humans; EpistemicOps trains agents to detect drift, reason under uncertainty, and pass useful memory to the next generation.
+
+### Why this matters
+
+This dashboard is optimized for judge-facing evidence: same scenarios, same run configuration, and explicit baseline-vs-trained artifacts that can be replayed step-by-step.
+
+### Core environment mechanics
 
 1. **🔴 Temporal Drift**: API contracts change silently mid-episode. The agent must detect schema changes through downstream failures.
 2. **📝 Generational Memory**: Context is wiped between eras — only a 2048-token Legacy Document survives to the next generation.
