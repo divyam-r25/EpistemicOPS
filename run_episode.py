@@ -25,9 +25,12 @@ from reward import compute_total_reward
 from reward.era_task_reward import compute_era_task_reward
 from reward.calibration_reward import compute_calibration_reward
 from reward.teacher_delta_reward import compute_teacher_delta_reward
-from reward.legacy_utility_reward import compute_legacy_utility_reward
+from reward.legacy_utility_reward import (
+    compute_legacy_utility_reward,
+    compute_legacy_utility_reward_breakdown,
+)
 from reward.leakage_penalty import compute_leakage_penalty
-from reward.anti_hack_penalty import compute_anti_hack_penalty
+from reward.anti_hack_penalty import compute_anti_hack_penalty, compute_anti_hack_penalty_breakdown
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
 logger = logging.getLogger("orchestrator")
@@ -84,6 +87,8 @@ async def run_era(
     score_before_oversight = 0.0
     score_after_oversight = 0.0
     oversight_triggered = False
+    oversight_triggered_at_step = None  # Track when oversight fired for delta timing
+    post_oversight_scores = []  # Criteria snapshots taken after oversight fires
     era_trajectory = []  # For recording
 
     while not done and step < max_steps:
@@ -106,7 +111,8 @@ async def run_era(
 
         if info.get("phase") == "SOCRATIC_RECOVERY" and not oversight_triggered:
             oversight_triggered = True
-            # Snapshot score before oversight for teacher_delta
+            oversight_triggered_at_step = step
+            # Snapshot score BEFORE oversight for teacher_delta
             criteria = era_config.get("success_criteria", [])
             met_before = env.world.evaluate_success_criteria(criteria)
             score_before_oversight = len(met_before) / max(1, len(criteria))
@@ -129,7 +135,7 @@ async def run_era(
 
             intervention_payload = intervention.get("payload", {})
             oversight_msg = str(list(intervention_payload.values())[0]) if intervention_payload else ""
-            
+
             conversation_history.append({
                 "role": "oversight",
                 "msg": oversight_msg
@@ -151,6 +157,14 @@ async def run_era(
                 "judge_fallback": judge_fallback,
             })
             logger.info(f"  Step {step:2d} │ Judge: targeting={judge_result.get('targeting', 0):.2f}, restraint={judge_result.get('restraint', 0):.2f}")
+
+        # Teacher delta: capture score within 5 steps of oversight firing
+        if oversight_triggered and oversight_triggered_at_step is not None:
+            steps_after = step - oversight_triggered_at_step
+            if 1 <= steps_after <= 5:
+                criteria_snap = era_config.get("success_criteria", [])
+                met_snap = env.world.evaluate_success_criteria(criteria_snap)
+                post_oversight_scores.append(len(met_snap) / max(1, len(criteria_snap)))
 
         if action_type == "write_legacy" and step >= max_steps - 2:
             end_action = {"action_type": "end_era", "payload": {}}
@@ -188,25 +202,43 @@ async def run_era(
         score_before_oversight, score_after_oversight, num_interventions
     )
 
+    # Teacher delta: use post-oversight score window (not era-end conflation)
+    if oversight_triggered:
+        if post_oversight_scores:
+            # Use the best score achieved within 5 steps of oversight
+            score_after_oversight = max(post_oversight_scores)
+        else:
+            # Oversight fired but no window scores captured (era ended quickly)
+            met_after = env.world.evaluate_success_criteria(criteria)
+            score_after_oversight = len(met_after) / max(1, len(criteria))
+    num_interventions = len(env.oversight_interventions)
+    r_teacher_delta = compute_teacher_delta_reward(
+        score_before_oversight, score_after_oversight, num_interventions
+    )
+
+    # Legacy utility: content-quality based (not circular r_era_task baseline)
     r_legacy_utility = 0.0
+    legacy_breakdown = {}
     if env.current_legacy_doc:
         doc = env.current_legacy_doc
         drift_list = [
             d if isinstance(d, dict) else d.model_dump() if hasattr(d, 'model_dump') else {}
             for d in env.world.state.drift_events_fired
         ]
-        drift_capture = env.parser.score_drift_capture(doc, drift_list)
-        undocumented = len(drift_list) - int(drift_capture * len(drift_list)) if drift_list else 0
-        r_legacy_utility = compute_legacy_utility_reward(
-            performance_with_legacy=r_era_task,
-            performance_without_legacy=max(0.0, r_era_task - 0.15),
-            trust_ratings_accurate=drift_capture > 0.5,
-            undocumented_drifts=undocumented
+        # Get structural score from parser (already computed)
+        _, _, stats = env.parser.parse_and_truncate(doc)
+        structural_score = stats.get("compliance_score", 0.0)
+        legacy_breakdown = compute_legacy_utility_reward_breakdown(
+            doc_text=doc,
+            actual_drifts=drift_list,
+            structural_score=structural_score,
         )
+        r_legacy_utility = legacy_breakdown["total"]
 
     max_leakage = max((i.get("leakage", 0.0) for i in env.oversight_interventions), default=0.0)
     r_leakage = compute_leakage_penalty(max_leakage)
-    r_anti_hack = compute_anti_hack_penalty(env.action_history, max_steps)
+    anti_hack_breakdown = compute_anti_hack_penalty_breakdown(env.action_history, max_steps)
+    r_anti_hack = anti_hack_breakdown["total"]
     total = compute_total_reward(
         era_task=r_era_task,
         calibration=r_calibration,
@@ -219,7 +251,8 @@ async def run_era(
     logger.info(f"═══ ERA {era_id} RESULTS ═══")
     logger.info(f"  Criteria met: {met_criteria} / {criteria}")
     logger.info(f"  R_era_task={r_era_task:.3f}  R_calibration={r_calibration:.2f}x  R_teacher_delta={r_teacher_delta:.3f}")
-    logger.info(f"  R_legacy_utility={r_legacy_utility:.3f}  R_leakage={r_leakage:.3f}  R_anti_hack={r_anti_hack:.3f}")
+    logger.info(f"  R_legacy_utility={r_legacy_utility:.3f} {legacy_breakdown}")
+    logger.info(f"  R_leakage={r_leakage:.3f}  R_anti_hack={r_anti_hack:.3f} {anti_hack_breakdown}")
     logger.info(f"  ★ R_total={total['R_total']:.3f}  R_normalized={total['R_normalized']:.4f}")
 
     first_drift_step = _first_drift_injection_step(env.world.state)
@@ -238,6 +271,9 @@ async def run_era(
         "legacy_doc_written": env.current_legacy_doc is not None,
         "legacy_doc": env.current_legacy_doc,
         "oversight_interventions": num_interventions,
+        "post_oversight_scores": post_oversight_scores,
+        "legacy_breakdown": legacy_breakdown,
+        "anti_hack_breakdown": anti_hack_breakdown,
         "reward": total,
         "trajectory": era_trajectory,
     }

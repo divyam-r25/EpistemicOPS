@@ -18,6 +18,11 @@ from environment.leakage_detector import LeakageDetector
 logger = logging.getLogger("epistemicops-env")
 
 
+def era_id_hash(era_id: int) -> int:
+    """Stable per-era integer offset for drift seed variation across eras."""
+    return era_id * 1000003  # prime multiplier to spread era IDs apart
+
+
 # Simulated responses used when EPISTEMICOPS_OFFLINE=true
 SIMULATED_RESPONSES = {
     "get_incident_status": {
@@ -138,10 +143,11 @@ class EpistemicOpsEnv:
         self.current_legacy_doc = None
         self.scenario_id = None
 
-    def reset(self, scenario_config: dict, era_id: int = 1, legacy_doc: str = None) -> dict:
+    def reset(self, scenario_config: dict, era_id: int = 1, legacy_doc: str = None, seed: int = None) -> dict:
         self.scenario_id = scenario_config.get("id")
+        self.episode_seed = seed  # Store for drift timing reproducibility
         self.world.initialize_era(scenario_config, era_id, legacy_doc)
-        
+
         self.action_history = []
         self.oversight_interventions = []
         self.primary_reasoning_trace = []
@@ -169,7 +175,11 @@ class EpistemicOpsEnv:
             self.world.advance_step()
             self.action_history.append({"action": action, "step": self.world.state.step})
             if self.world.state.phase == Phase.OPERATION:
-                drifts = self.injector.get_drift_for_step(self.world.state.step, self.world.era_config)
+                # Pass episode seed for reproducible-but-varied drift timing
+                drift_seed = (self.episode_seed or 0) + era_id_hash(self.world.state.era_id)
+                drifts = self.injector.get_drift_for_step(
+                    self.world.state.step, self.world.era_config, seed=drift_seed
+                )
                 for drift in drifts:
                     success = await self.injector.inject_drift(drift)
                     if success:
@@ -181,6 +191,7 @@ class EpistemicOpsEnv:
         info = {"phase": self.world.state.phase.value, "step": self.world.state.step}
         info["state"] = self.world.state.to_dict()
         return obs, reward, done, info
+
 
     def _get_simulated_response(self, tool_name: str, args: dict) -> dict:
         """Get a simulated API response based on current drift state."""
@@ -385,12 +396,16 @@ class EpistemicOpsEnv:
             "era_task_brief": self.world.state.current_task_brief,
             "era_id": self.world.state.era_id,
         }
-        
-        if self.world.state.drift_events_fired:
-            obs["drifts_detected"] = len(self.world.state.drift_events_fired)
+
+        # LEAKAGE FIX: Do NOT expose drift_events_fired count directly.
+        # The agent must infer drift from tool response anomalies, not from a counter.
+        # Phase transitions (DRIFT_INJECTION, SOCRATIC_RECOVERY) are legitimate indirect signals.
+
         if msg:
             obs["message"] = msg
         if tool_resp:
+            # Surface the tool response — this is legitimate: agent sees API output.
+            # Drift manifests here as anomalous fields/types/status codes.
             obs["tool_response"] = tool_resp
         if oversight_msg:
             obs["oversight_message"] = {"present": True, "content": oversight_msg}
@@ -400,8 +415,23 @@ class EpistemicOpsEnv:
             obs["legacy_document"] = self.world.state.legacy_document_store[prev_era_key]
 
         obs["action_history_last_5"] = [a["action"] for a in self.action_history[-5:]]
-        
+
+        # Final leakage audit: assert no internal drift state leaked
+        self._audit_observation_for_leakage(obs)
         return obs
+
+    def _audit_observation_for_leakage(self, obs: dict) -> None:
+        """
+        Raises AssertionError if any internal drift identifier leaks into the observation.
+        This is a developer-facing guard, not agent-facing. Runs in every step.
+        """
+        FORBIDDEN_KEYS = {"drifts_detected", "drift_events_fired", "drift_count",
+                          "active_drifts", "internal_drift_state"}
+        for key in FORBIDDEN_KEYS:
+            assert key not in obs, (
+                f"[LEAKAGE] Observation contains forbidden key '{key}' "
+                f"which would leak internal drift state to the agent."
+            )
 
     def _build_error_observation(self, error_msg: str) -> dict:
         return {

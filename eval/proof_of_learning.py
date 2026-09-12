@@ -491,12 +491,27 @@ def _parse_args():
         default="",
         help="W&B run name (default: auto from timestamp).",
     )
+    parser.add_argument(
+        "--held-out-scenarios",
+        default="metrics_schema_drift,log_pagination_chaos",
+        help="Comma-separated held-out scenario IDs evaluated ONLY on trained side for generalization.",
+    )
+    parser.add_argument(
+        "--skip-held-out",
+        action="store_true",
+        help="Skip held-out evaluation (faster demo runs).",
+    )
     return parser.parse_args()
 
 
 async def main():
     args = _parse_args()
     scenarios = [s.strip() for s in args.scenarios.split(",") if s.strip()]
+    held_out_scenarios = (
+        []
+        if args.skip_held_out
+        else [s.strip() for s in args.held_out_scenarios.split(",") if s.strip()]
+    )
     repo_root = Path(__file__).parent.parent
     if not scenarios:
         raise ValueError("No scenarios provided.")
@@ -601,11 +616,104 @@ async def main():
         },
     }
 
+    output["held_out_generalization"] = {
+        "scenarios": held_out_scenarios,
+        "note": (
+            "Held-out scenarios are NOT in the training dataset. "
+            "This measures zero-shot generalization of drift detection."
+        ),
+        "results": {},
+    }
+
+    if held_out_scenarios:
+        from environment.scenario_loader import ScenarioLoader as _SL
+        from environment.openenv_wrapper import EpistemicOpsEnv as _EE
+        from agents.oversight_agent import OversightAgent as _OA
+        from agents.llm_judge import LLMJudge as _J
+        from run_episode import run_era as _RE
+
+        print(f"\n{'='*60}")
+        print("HELD-OUT GENERALIZATION EVALUATION (trained policy only)")
+        print(f"{'='*60}")
+
+        _loader = _SL()
+        for h_scenario_id in held_out_scenarios:
+            h_scenario = _loader.get_scenario(h_scenario_id)
+            if not h_scenario:
+                print(f"  ⚠ Held-out scenario '{h_scenario_id}' not found — skipping.")
+                output["held_out_generalization"]["results"][h_scenario_id] = {
+                    "error": "scenario_not_found"
+                }
+                continue
+
+            h_config = h_scenario.model_dump()
+            h_num_eras = min(args.eras_per_run, h_config.get("num_eras", 3))
+            h_runs = []
+
+            for run_idx in range(args.runs_per_scenario):
+                import random
+                random.seed(99 + run_idx)
+                try:
+                    h_env = _EE()
+                    h_oversight = _OA()
+                    h_judge = _J()
+                    h_legacy = None
+                    h_era_results = []
+                    for h_era in range(1, h_num_eras + 1):
+                        h_era_cfg = next(
+                            (e for e in h_config.get("eras", []) if e.get("era_id") == h_era),
+                            {}
+                        )
+                        h_er = await _RE(
+                            h_env, h_config, h_era_cfg, h_era,
+                            trained_agent, h_oversight, h_judge,
+                            legacy_doc=h_legacy,
+                            max_steps=h_era_cfg.get("max_steps", 40),
+                        )
+                        h_era_results.append(h_er)
+                        h_legacy = h_er.get("legacy_doc")
+                    h_runs.append({
+                        "run": run_idx + 1,
+                        "era_results": h_era_results,
+                        "avg_reward": _safe_mean([
+                            r.get("reward", {}).get("R_normalized", 0.0)
+                            for r in h_era_results
+                        ]),
+                    })
+                except Exception as h_e:
+                    print(f"  ✗ Held-out {h_scenario_id} run {run_idx+1} failed: {h_e}")
+                    h_runs.append({"run": run_idx + 1, "error": str(h_e)})
+
+            # Compute generalization metrics
+            valid_h = [r for r in h_runs if "error" not in r]
+            h_drift_detected = 0
+            h_total_drift_eras = 0
+            h_rewards = []
+            for vr in valid_h:
+                h_rewards.append(vr.get("avg_reward", 0.0))
+                for er in vr.get("era_results", []):
+                    if er.get("drifts_fired", 0) > 0:
+                        h_total_drift_eras += 1
+                        if er.get("drifts_detected", 0) > 0:
+                            h_drift_detected += 1
+
+            h_drift_rate = (h_drift_detected / h_total_drift_eras) if h_total_drift_eras > 0 else 0.0
+            output["held_out_generalization"]["results"][h_scenario_id] = {
+                "avg_reward": round(_safe_mean(h_rewards), 4),
+                "drift_detection_rate": round(h_drift_rate, 4),
+                "drift_eras_total": h_total_drift_eras,
+                "drift_eras_detected": h_drift_detected,
+                "runs": len(valid_h),
+            }
+            print(f"  {h_scenario_id}: avg_reward={_safe_mean(h_rewards):.3f}  "
+                  f"drift_detection={h_drift_rate:.2%}  ({h_drift_detected}/{h_total_drift_eras} drift eras)")
+
     runtime_meta = _build_runtime_metadata(repo_root)
     run_metadata = {
         "runtime": runtime_meta,
         "requested_config": {
             "scenarios": scenarios,
+            "held_out_scenarios": held_out_scenarios,
             "runs_per_scenario": args.runs_per_scenario,
             "eras_per_run": args.eras_per_run,
             "baseline_profile": args.baseline_profile,
@@ -626,6 +734,7 @@ async def main():
         },
         "warnings": consistency["baseline"] + consistency["trained"],
     }
+
 
     eval_dir = repo_root / "eval_results"
     plots_dir = repo_root / "plots"

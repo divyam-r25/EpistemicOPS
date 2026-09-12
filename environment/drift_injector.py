@@ -26,11 +26,17 @@ class DriftInjector:
         else:
             self.offline = offline
 
-    def get_drift_for_step(self, step: int, era_config: dict) -> List[dict]:
+    def get_drift_for_step(self, step: int, era_config: dict, seed: int = None) -> List[dict]:
         """Check if any drift events are scheduled to fire at the current step.
-        
-        Fires at the midpoint of the drift window. Supports multiple drift events
-        per era (e.g., Era 5 of cascading_incident has DE-007 + DE-008).
+
+        Drift fires at a RANDOM step within the configured drift window (seeded).
+        This forces the agent to learn from evidence, not from memorized step numbers.
+
+        Args:
+            step:       Current world step.
+            era_config: Era configuration dict (contains drift_window and drift_events).
+            seed:       Optional seed for reproducible per-episode randomness.
+                        If None, uses a hash of era_config for stable-but-varying timing.
         """
         drifts_to_fire = []
         drift_window = era_config.get("drift_window", {})
@@ -39,13 +45,22 @@ class DriftInjector:
         if not drift_events:
             return []
 
-        # Fire at exactly the midpoint of the window
         earliest = drift_window.get("earliest_step", 10)
         latest = drift_window.get("latest_step", 20)
-        target_step = (earliest + latest) // 2
+
+        # Compute a per-era deterministic target step using seeded RNG.
+        # This keeps drift timing reproducible for a given episode seed while
+        # varying it across episodes/scenarios — agent cannot memorise step number.
+        if seed is None:
+            # Fallback: stable hash from era config
+            import hashlib, json as _json
+            cfg_str = _json.dumps(era_config, sort_keys=True, default=str)
+            seed = int(hashlib.md5(cfg_str.encode()).hexdigest()[:8], 16)
+
+        rng = __import__("random").Random(seed)
+        target_step = rng.randint(earliest, latest)
 
         if step == target_step:
-            # Convert Pydantic models to dicts if needed
             for drift in drift_events:
                 if hasattr(drift, "model_dump"):
                     drifts_to_fire.append(drift.model_dump())
@@ -55,6 +70,7 @@ class DriftInjector:
                     drifts_to_fire.append(dict(drift))
 
         return drifts_to_fire
+
 
     async def inject_drift(self, drift_event: dict) -> bool:
         """Inject a drift event. In offline mode, just record it locally.

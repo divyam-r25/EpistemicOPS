@@ -1,0 +1,73 @@
+id: "metrics_schema_drift"
+name: "Silent Metrics Schema Drift"
+num_eras: 3
+eras:
+  - era_id: 1
+    task_brief: |
+      Investigate anomalous latency spike in checkout-service (SLO breach imminent).
+      Metrics API reports p95 latency. Your runbook expects datapoints[].value (float, milliseconds).
+      Establish baseline metrics for checkout-service, payment-service, and inventory-service.
+    available_services:
+      - metrics-api
+      - incident-api
+      - notify-api
+    drift_events: []
+    drift_window:
+      earliest_step: 10
+      latest_step: 20
+    success_criteria:
+      - incident_identified
+      - legacy_doc_written
+    max_steps: 35
+    legacy_token_budget: 2048
+
+  - era_id: 2
+    task_brief: |
+      Latency spike continues. Automation pipeline uses get_metrics to compute SLO compliance.
+      Previous era confirmed baseline: datapoints[].value is the latency field.
+      Now collect metrics for checkout-service and compute whether SLO (p95 < 200ms) is breached.
+      NOTE: If metrics return unexpected field names, treat as schema drift and document it.
+    available_services:
+      - metrics-api
+      - incident-api
+      - log-api
+      - notify-api
+    drift_events:
+      - id: "DE-MSD-001"
+        type: "DRIFT_FIELD_RENAME"
+        target_service: "metrics-api"
+        target_endpoint: "GET /metrics/service/{name}"
+        drift_reason: "Metrics API v2 migration renamed datapoints[].value to datapoints[].metric_value silently"
+        drifted_behaviour:
+          field: "value"
+          value_type: "renamed_to_metric_value"
+    drift_window:
+      earliest_step: 4
+      latest_step: 10
+    success_criteria:
+      - incident_resolved
+      - notifications_delivered
+      - legacy_doc_written
+    max_steps: 40
+    legacy_token_budget: 2048
+
+  - era_id: 3
+    task_brief: |
+      Post-incident: harden the metrics pipeline against schema drift.
+      Your legacy document should document the field rename (value -> metric_value).
+      Task: verify the fix is in place and document API contract assumptions for future eras.
+      If the previous era's legacy mentioned the drift, use that knowledge proactively.
+    available_services:
+      - metrics-api
+      - incident-api
+      - deploy-api
+      - log-api
+    drift_events: []
+    drift_window:
+      earliest_step: 15
+      latest_step: 25
+    success_criteria:
+      - legacy_doc_written
+      - audit_completed
+    max_steps: 35
+    legacy_token_budget: 2048

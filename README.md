@@ -39,7 +39,7 @@ Judges should not need to reverse-engineer architecture to verify learning. This
 
 The environment runs across multiple **Eras**. Each era, a Primary Agent resolves SRE incidents using 5 mock API services.
 
-**The twist:** mid-era, the environment silently mutates API contracts. Status fields change from integers to strings. Pagination switches from offset to cursor. The agent is never told — it must detect the drift through downstream failures.
+**The twist:** mid-era, the environment silently mutates API contracts at a **randomised step** within a configured window. Status fields change from integers to strings. Pagination switches from offset to cursor. The agent is never told — it must detect the drift through downstream failures.
 
 When it fails, a second agent — the **Oversight Agent** — intervenes with Socratic questions. It cannot give the answer. If it does, an LLM Judge penalizes it heavily.
 
@@ -54,15 +54,16 @@ graph TD
         WE["World Engine<br/>(state persistence)"]
         AV["Action Validator"]
         LP["Legacy Parser"]
-        DI["Drift Injector"]
+        DI["Drift Injector<br/>(seeded random step)"]
         LD["Leakage Detector"]
+        LA["Leakage Audit Guard<br/>(observation boundary)"]
     end
 
     subgraph "Mock API Layer"
         IA["incident-api"]
         MA["metrics-api"]
         DA["deploy-api"]
-        LA["log-api"]
+        LAP["log-api"]
         NA["notify-api"]
     end
 
@@ -72,42 +73,84 @@ graph TD
         JD["LLM Judge"]
     end
 
+    subgraph "Reward System"
+        GR["grpo_reward.py<br/>(GRPO Training)"]
+        ER["era_task_reward"]
+        CR["calibration_reward"]
+        TR["teacher_delta_reward"]
+        LR["legacy_utility_reward<br/>(content-quality)"]
+        AH["anti_hack_penalty<br/>(7 vectors)"]
+    end
+
     PA -->|action| OW
-    OW -->|HTTP| IA & MA & DA & LA & NA
+    OW -->|HTTP| IA & MA & DA & LAP & NA
     OA -->|Socratic intervention| OW
-    OW --> WE & AV & DI & LP
+    OW --> WE & AV & DI & LP & LA
     OA --> JD
     JD --> |leakage_penalty| OW
+    GR -.->|"same components"| ER & CR & TR & LR & AH
 ```
+
+## Reward Model
+
+```
+R_total = (R_era_task × R_calibration) + R_teacher_delta + R_legacy_utility + R_leakage + R_anti_hack
+```
+
+| Component | Range | Description |
+|---|---|---|
+| R_era_task | 0.0 – 1.0 | Fraction of success criteria met |
+| R_calibration | 0.5× – 1.5× | Brier-score multiplier on hypothesis confidence |
+| R_teacher_delta | 0.0 – 1.0 | Improvement within 5 steps of Socratic oversight |
+| R_legacy_utility | 0.0 – 1.0 | Content-quality score: structure (35%) + drift capture (40%) + actionability (25%) |
+| R_leakage | -1.0 – 0.0 | Penalty for teacher giving away answers |
+| R_anti_hack | -1.0 – 0.0 | 7-vector penalty: loops, hallucinated tools, early-complete, hyp spam, legacy spam, empty legacy, timeout |
+
+> **Training reward alignment:** `reward/grpo_reward.py` is the **single canonical reward source** used by GRPO training. It uses the same components as the episode-level reward — the training and evaluation rewards are structurally aligned, not independent heuristics.
+
+> **Reward hacking resistance:** Anti-hack penalties cover 7 distinct gaming vectors. `declare_hypothesis` earns reward only when drift context is present in the prompt. `write_legacy` earns reward proportional to content quality, not just existence.
+
+## Anti-Hacking Architecture
+
+The environment implements several layers to prevent reward hacking:
+
+| Layer | Mechanism |
+|---|---|
+| **Observation boundary** | `drifts_detected` count removed from obs; audit guard raises `AssertionError` if internal state leaks |
+| **Drift timing randomisation** | Drift fires at seeded random step (not fixed midpoint) — agent cannot memorise step number |
+| **Tiered GRPO reward** | Action type alone ≠ reward; context required for Tier-2 (quality) and Tier-3 (drift awareness) |
+| **Anti-hack penalties (7 vectors)** | Hypothesis spam, early completion, legacy spam, content-free legacy, loops, hallucinated tools, timeout |
+| **Tighter criteria** | `root_cause_documented` requires keyword hypothesis; `notifications_delivered` requires actual `delivered=True` |
 
 ## Results: Before vs After
 
-This project now ships a reproducible before/after pipeline:
+This project ships a reproducible before/after pipeline:
 
-- **Before**: brittle baseline policy (runbook-heavy, weak drift reasoning)
-- **After**: drift-aware policy (adapts to schema changes, better recovery)
+- **Before**: brittle baseline policy (runbook-heavy, no drift awareness, declares complete early)
+- **After**: drift-aware policy (detects schema drift, writes substantive legacy docs, adapts probe strategy)
 
 Run:
 ```bash
-# Demo mode: allowed to fallback to profile if checkpoint is unavailable
+# Demo mode: profile comparison (no GPU needed)
+python eval/proof_of_learning.py --proof-mode demo --skip-held-out
+
+# With held-out generalization evaluation
 python eval/proof_of_learning.py --proof-mode demo
 
-# Final evidence mode: fail closed unless checkpoint run succeeds
+# Final evidence mode: checkpoint-backed
 python eval/proof_of_learning.py --proof-mode final --trained-agent-source checkpoint --trained-checkpoint-path ./checkpoints/primary_agent_final
 ```
 
 This generates:
-- `eval_results/proof_of_learning.json`
-- `eval_results/proof_run_metadata.json`
-- `eval_results/proof_behavior_examples.md`
+- `eval_results/proof_of_learning.json` — full metrics including held-out generalization
+- `eval_results/proof_run_metadata.json` — reproducibility metadata
+- `eval_results/proof_behavior_examples.md` — trajectory excerpts
 - `plots/proof_reward_curve.png`
 - `plots/proof_before_vs_after.png`
 
 ### Metric Comparison (auto-generated from real runs)
 
-All metrics above are computed from the same environment loop (same scenarios, same eras per run, same run counts) and can be traced to `eval_results/proof_of_learning.json`. Reproducibility metadata (commit, package versions, runtime, evaluation config) is stored in `eval_results/proof_run_metadata.json`.
-
-**Drift detection (headline metric):** fraction of eras where the primary declares a hypothesis that mentions drift **after** a drift event has actually fired in that era (no credit for speculative “drift” wording before injection).
+> **Note:** Results below are from **profile vs profile** mode (deterministic policy comparison, no GPU required). For checkpoint-backed results, set `OPENAI_API_KEY` and use `--trained-agent-source checkpoint`.
 
 | Metric | Baseline | Trained | Delta |
 |---|---:|---:|---:|
@@ -128,6 +171,19 @@ All metrics above are computed from the same environment loop (same scenarios, s
 ![Before/after metric comparison](plots/proof_before_vs_after.png)
 *Direct baseline vs trained comparison on the same environment.*
 
+### Held-Out Generalization
+
+The trained policy is also evaluated on **2 held-out scenarios** not present in the training dataset:
+- `metrics_schema_drift` — field rename drift (`value` → `metric_value`) in SLO monitoring
+- `log_pagination_chaos` — pagination model change (offset → cursor) in security audit
+
+These test zero-shot generalization of drift detection to unseen API patterns.
+
+```bash
+python eval/proof_of_learning.py --proof-mode demo
+# Reports: held_out_generalization section in proof_of_learning.json
+```
+
 ### Behavioral Difference (what changed)
 
 See `eval_results/proof_behavior_examples.md` for trajectory excerpts showing:
@@ -146,23 +202,6 @@ The Gradio app also includes a **Compare Replay** tab for side-by-side episode p
 
 ![Episode timeline showing drift injection and oversight events](plots/drift_detection_timeline.png)
 *Timeline of drift and oversight events.*
-
-## Reward Model
-
-```
-R_total = (R_era_task × R_calibration) + R_teacher_delta + R_legacy_utility + R_leakage + R_anti_hack
-```
-
-| Component | Range | Description |
-|---|---|---|
-| R_era_task | 0.0 – 1.0 | Fraction of success criteria met |
-| R_calibration | 0.5× – 1.5× | Brier-score multiplier on hypothesis confidence |
-| R_teacher_delta | 0.0 – 1.0 | Improvement from Socratic oversight interventions |
-| R_legacy_utility | -0.5 – 1.0 | Counterfactual value of legacy document to next era |
-| R_leakage | -1.0 – 0.0 | Penalty for teacher giving away answers |
-| R_anti_hack | -1.0 – 0.0 | Penalty for repetitive/degenerate action patterns |
-
-The reward signal is **rich and composable** — not binary pass/fail. Each component targets a different failure mode, and an agent that games one component (e.g., always declaring task complete) gets penalized by another (anti-hack).
 
 ## Quick Start
 
@@ -186,31 +225,48 @@ python plots/generate_plots.py
 # 2) Core before/after proof (required)
 python eval/proof_of_learning.py
 
-# 3) Optional: compare baseline profile vs your real GRPO checkpoint
+# 3) With held-out generalization evaluation
+python eval/proof_of_learning.py --proof-mode demo
+
+# 4) Compare baseline profile vs real GRPO checkpoint
 python eval/proof_of_learning.py --trained-agent-source checkpoint --trained-checkpoint-path ./checkpoints/primary_agent_final
 
-# 4) Validate artifact integrity before demo/submission
+# 5) Validate artifact integrity before demo/submission
 python eval/validate_evidence.py
 
-# 5) Optional: push the same proof metrics + plots to Weights & Biases
+# 6) Push proof metrics + plots to Weights & Biases
 python eval/proof_of_learning.py --proof-mode demo --wandb
 ```
 
 ### Training (Colab)
 Open the training notebook: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/divyam-r25/EpistemicOPS/blob/main/training/colab_grpo_training.ipynb)
 
-Or run locally with `--dry-run` to validate:
+Or validate locally (no GPU needed):
 ```bash
 python training/train_primary.py --dry-run
+```
+
+The dry-run prints per-type dataset composition and validates the reward ordering assertions:
+```
+[+0.636]  Good: full legacy doc        ← full sections, substantive content
+[+0.500]  Good: known tool with args
+[+0.318]  Good: specific drift hypothesis
+[+0.000]  Bad: invalid JSON
+[+0.000]  Bad: hallucinated tool
+[+0.136]  Bad: vague hypothesis
+[-0.091]  Bad: early task complete (step 0)
+[-0.273]  Bad: empty legacy
+✓ All reward ordering assertions passed
 ```
 
 ### Experiment tracking (for judges)
 
 Hackathon judges often expect **structured training metrics** (loss, learning rate, reward-related signals), not only console logs.
 
-- **Weights & Biases (recommended):** Install `wandb`, set `WANDB_API_KEY`, and run training. [`training/train_primary.py`](training/train_primary.py) uses `GRPOConfig(report_to=...)` (default `wandb` unless disabled). In Colab, add **`WANDB_API_KEY`** to Secrets and run the notebook’s W&B setup cell—then paste the **W&B run URL** next to your [`eval_results/proof_of_learning.json`](eval_results/proof_of_learning.json) and plots in submissions or the README.
+- **Weights & Biases (recommended):** Install `wandb`, set `WANDB_API_KEY`, and run training. [`training/train_primary.py`](training/train_primary.py) uses `GRPOConfig(report_to=...)` (default `wandb` unless disabled). In Colab, add **`WANDB_API_KEY`** to Secrets and run the notebook's W&B setup cell—then paste the **W&B run URL** next to your [`eval_results/proof_of_learning.json`](eval_results/proof_of_learning.json) and plots in submissions or the README.
+- **Component logging:** Set `EPISTEMICOPS_LOG_REWARD_COMPONENTS=true` to log per-batch `reward/format`, `reward/action_quality`, `reward/drift_awareness`, `reward/anti_hack` components to W&B alongside loss.
 - **Log environment proof to the same project (optional):** after a proof run, `python eval/proof_of_learning.py --proof-mode demo --wandb` uploads baseline vs trained summary metrics (and proof plots) to W&B when `wandb` is installed and authenticated.
-- **Without W&B:** set `WANDB_DISABLED=true` to use `report_to=none` locally, or set `TRAIN_REPORT_TO=tensorboard` for local TensorBoard logs (no shareable link unless you export or use TensorBoard.dev).
+- **Without W&B:** set `WANDB_DISABLED=true` to use `report_to=none` locally, or set `TRAIN_REPORT_TO=tensorboard` for local TensorBoard logs.
 
 ### Colab mismatch quick fix
 If you see errors like `unexpected keyword argument 'primary_agent_profile'`:
@@ -221,6 +277,24 @@ If you see errors like `unexpected keyword argument 'primary_agent_profile'`:
 4. Rerun baseline evaluation.
 
 This repo keeps canonical usage on `primary_profile` and accepts legacy `primary_agent_profile` with a deprecation warning for backward compatibility.
+
+## Test Suite
+
+```bash
+# Run all tests (Docker tests automatically skipped offline)
+python -m pytest tests/ -v
+
+# Expected: 52 passed, 3 skipped (Docker)
+```
+
+Test coverage:
+- `test_grpo_reward.py` — 22 tests: reward ordering, anti-hack, drift-awareness, format scoring
+- `test_anti_hack.py` — 12 tests: all 7 penalty vectors, combined cap
+- `test_leakage.py` — 5 tests: observation boundary, audit guard, phase-only indirect signals
+- `test_environment.py` — 4 tests: world engine, legacy parser
+- `test_reward.py` / `test_rewards.py` — 6 tests: reward components
+- `test_integration.py` — 1 end-to-end era run
+- `test_mock_apis.py` — 3 Docker tests (auto-skipped offline)
 
 ## Links
 
@@ -234,7 +308,7 @@ This repo keeps canonical usage on `primary_profile` and accepts legacy `primary
 
 **Hugging Face Space — Live Simulation:** Runs out of the box with **offline** simulated APIs and deterministic agent policies (no Docker). Optional: add a Space secret **`OPENAI_API_KEY`** if you want real LLM calls for the primary agent, oversight, and judge instead of mocks.
 
-The OpenEnv manifest declares **`server.port: 8000`** (separate from Gradio’s default `7860`). To run the FastAPI server locally:
+The OpenEnv manifest declares **`server.port: 8000`** (separate from Gradio's default `7860`). To run the FastAPI server locally:
 
 ```bash
 uvicorn environment.server:app --host 0.0.0.0 --port 8000
@@ -242,10 +316,10 @@ uvicorn environment.server:app --host 0.0.0.0 --port 8000
 
 ## Hackathon Alignment
 
-- **Environment Innovation (40%)**: multi-era memory transfer, silent API drift injection, Socratic oversight constraints.
+- **Environment Innovation (40%)**: multi-era memory transfer, silent API drift injection with randomised timing, Socratic oversight constraints, leakage audit guard, observation boundary enforcement.
 - **Storytelling (30%)**: replay + proof tab + behavior examples in `proof_behavior_examples.md`.
-- **Improvement Evidence (20%)**: reproducible baseline vs trained metrics + reward curves from `eval/proof_of_learning.py`.
-- **Reward/Training Pipeline (10%)**: environment -> reward components -> policy comparison script -> measurable gains; optional W&B / TensorBoard for training curves and `eval/proof_of_learning.py --wandb` for eval dashboards.
+- **Improvement Evidence (20%)**: reproducible baseline vs trained metrics + held-out generalization + reward curves from `eval/proof_of_learning.py`.
+- **Reward/Training Pipeline (10%)**: single canonical reward source (`reward/grpo_reward.py`) → GRPO training → episode evaluation; W&B component logging; dry-run assertions validate reward ordering.
 
 ## Documentation
 - [Full Problem Statement](docs/PROBLEM_STATEMENT.md)

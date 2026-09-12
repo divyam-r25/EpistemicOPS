@@ -1,0 +1,72 @@
+id: "log_pagination_chaos"
+name: "Log Pagination Chaos"
+num_eras: 3
+eras:
+  - era_id: 1
+    task_brief: |
+      Security audit requires collecting all ERROR-level logs for auth-service from the last 24 hours.
+      Log API uses offset-based pagination: query_logs(service=auth-service, level=ERROR, offset=0, limit=50).
+      Iterate pages until you have all logs. Expected: logs[], total (int), offset (int).
+      Document the total error count and any suspicious patterns in your legacy document.
+    available_services:
+      - log-api
+      - incident-api
+      - notify-api
+    drift_events: []
+    drift_window:
+      earliest_step: 10
+      latest_step: 20
+    success_criteria:
+      - incident_identified
+      - legacy_doc_written
+    max_steps: 35
+    legacy_token_budget: 2048
+
+  - era_id: 2
+    task_brief: |
+      Audit escalated: collect logs for auth-service AND payment-service. Pagination still expected
+      to be offset-based (your legacy document confirms this). Collect all pages.
+      If the pagination model has changed (e.g. cursor-based), treat as schema drift and document.
+      Success: collect logs for both services, notify security team.
+    available_services:
+      - log-api
+      - incident-api
+      - notify-api
+    drift_events:
+      - id: "DE-LPC-001"
+        type: "DRIFT_PAGINATION"
+        target_service: "log-api"
+        target_endpoint: "GET /logs/query"
+        drift_reason: "Log API v3 switched from offset-based to cursor-based pagination silently. Response now includes next_cursor instead of offset."
+        drifted_behaviour:
+          field: "offset"
+          value_type: "replaced_by_next_cursor"
+    drift_window:
+      earliest_step: 5
+      latest_step: 12
+    success_criteria:
+      - incident_resolved
+      - notifications_delivered
+      - legacy_doc_written
+    max_steps: 40
+    legacy_token_budget: 2048
+
+  - era_id: 3
+    task_brief: |
+      Audit complete. Harden the log collection pipeline against pagination drift.
+      Your legacy should note that log-api now uses cursor-based pagination (next_cursor field).
+      Document the correct pagination strategy for future eras.
+      Verify pagination is now stable and complete a full log collection run.
+    available_services:
+      - log-api
+      - metrics-api
+      - notify-api
+    drift_events: []
+    drift_window:
+      earliest_step: 15
+      latest_step: 25
+    success_criteria:
+      - legacy_doc_written
+      - audit_completed
+    max_steps: 35
+    legacy_token_budget: 2048
